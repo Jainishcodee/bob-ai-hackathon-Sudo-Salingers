@@ -12,8 +12,8 @@
 |---|---|
 | **Team Name** | Sudo Salingers |
 | **Track** | AI |
-| **Team Lead** | Jainish — jainishshah356@gmail.com |
-| **Members** | TODO: add teammates (name — email) |
+| **Team Lead** | Jainish — d24ce168@charusat.edu.in  |
+| **Members** | Bhavya Radiya — d24ce168@charusat.edu.in · Vandan Shah — 24BCA229@charusat.edu.in · Jinam Shah — D26DCE140@charusat.edu.in |
 
 ---
 

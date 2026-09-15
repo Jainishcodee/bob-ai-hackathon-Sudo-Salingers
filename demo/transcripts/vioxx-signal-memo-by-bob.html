@@ -1,0 +1,338 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Rofecoxib (Vioxx) — Signal Assessment Memo</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1f2328;
+    background: #ffffff;
+    padding: 32px 16px 48px;
+  }
+  .page { max-width: 760px; margin: 0 auto; }
+
+  /* header */
+  .header { border-bottom: 2px solid #1f2328; padding-bottom: 12px; margin-bottom: 20px; }
+  .doc-type { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #57606a; }
+  h1 { font-size: 20px; font-weight: 700; margin: 4px 0 2px; }
+  .meta { font-size: 12px; color: #57606a; }
+
+  /* BLUF box */
+  .bluf {
+    background: #1f2328;
+    color: #ffffff;
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin: 20px 0;
+  }
+  .bluf .label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #9ca3af; margin-bottom: 4px; }
+  .bluf p { font-size: 14px; line-height: 1.55; }
+
+  /* section */
+  h2 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #57606a;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 14px;
+    margin: 20px 0 10px;
+  }
+  p { margin-bottom: 8px; }
+
+  /* evidence table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 4px; }
+  thead { background: #f7f8fa; }
+  th { text-align: left; padding: 7px 10px; font-weight: 600; border-bottom: 2px solid #e5e7eb; white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .signal-badge {
+    display: inline-block;
+    background: #dc2626;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* organ system bars */
+  .soc-grid { display: grid; gap: 6px; margin-top: 8px; }
+  .soc-row { display: grid; grid-template-columns: 210px 1fr 60px; align-items: center; gap: 8px; }
+  .soc-name { font-size: 12px; color: #1f2328; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { background: #e5e7eb; border-radius: 2px; height: 10px; }
+  .bar-fill { height: 10px; border-radius: 2px; background: #3b82d4; }
+  .bar-fill.high { background: #dc2626; }
+  .soc-n { font-size: 11px; color: #57606a; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* case cards */
+  .case-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+  .case-card { background: #f7f8fa; border: 1px solid #e5e7eb; border-radius: 4px; padding: 10px 12px; font-size: 12px; }
+  .case-card .case-id { font-weight: 700; color: #57606a; font-size: 11px; margin-bottom: 4px; }
+  .case-card .case-detail { margin-bottom: 3px; }
+  .case-card .reactions { color: #dc2626; }
+  .case-card .drugs { color: #57606a; }
+
+  /* bias box */
+  .bias-list { list-style: none; padding: 0; }
+  .bias-list li { padding: 5px 0 5px 16px; border-bottom: 1px solid #f0f0f0; position: relative; font-size: 13px; }
+  .bias-list li:last-child { border-bottom: none; }
+  .bias-list li::before { content: "▸"; position: absolute; left: 0; color: #3b82d4; }
+
+  /* next steps */
+  .step-list { list-style: none; padding: 0; counter-reset: steps; }
+  .step-list li { counter-increment: steps; padding: 6px 0 6px 32px; position: relative; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+  .step-list li:last-child { border-bottom: none; }
+  .step-list li::before {
+    content: counter(steps);
+    position: absolute; left: 0;
+    background: #3b82d4; color: #fff;
+    font-size: 10px; font-weight: 700;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    top: 8px;
+    line-height: 1;
+    text-align: center;
+  }
+
+  .disclaimer {
+    margin-top: 20px;
+    padding: 10px 14px;
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    font-size: 12px;
+    color: #57606a;
+    line-height: 1.5;
+  }
+
+  .footer {
+    margin-top: 40px;
+    padding-top: 14px;
+    border-top: 1px solid #e5e7eb;
+    text-align: center;
+    font-size: 12px;
+    color: #57606a;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  
+  <div class="header">
+    <div class="doc-type">Pharmacovigilance Signal Assessment · FDA FAERS · openFDA</div>
+    <h1>Rofecoxib (Vioxx) — Disproportionality Signal Report</h1>
+    <div class="meta">Drug: ROFECOXIB / VIOXX  ·  Total FAERS database: 20,692,690 reports  ·  Reports mentioning drug: 45,770  ·  Criteria: Evans (2001) PRR ≥ 2, χ² ≥ 4, n ≥ 3</div>
+  </div>
+
+  
+  <div class="bluf">
+    <div class="label">Bottom Line Up Front</div>
+    <p>Rofecoxib carries extremely large, statistically unambiguous cardiovascular disproportionality signals in FAERS — dominated by myocardial infarction (PRR 49, n = 19,886), coronary artery disease (PRR 72, n = 4,157), and cerebrovascular accident (PRR 39, n = 13,371) — findings quantitatively consistent with the clinical evidence that led to voluntary market withdrawal in September 2004; these signals cannot be attributed to random variation, though litigation-driven reporting severely inflates case counts and must be treated as a major confound before any incidence estimate is derived.</p>
+  </div>
+
+  
+  <h2>1 · Top 3 Clinical Signals — Confirmed 2 × 2 Analysis</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Reaction</th>
+        <th>n</th>
+        <th>PRR [95 % CI]</th>
+        <th>ROR</th>
+        <th>χ² (Yates)</th>
+        <th>Tier</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Myocardial Infarction</strong></td>
+        <td class="num">19,886</td>
+        <td class="num">49.16 [48.60 – 49.72]</td>
+        <td class="num">86.16</td>
+        <td class="num">854,305</td>
+        <td><span class="signal-badge">Strong</span></td>
+      </tr>
+      <tr>
+        <td><strong>Coronary Artery Disease</strong></td>
+        <td class="num">4,157</td>
+        <td class="num">71.66 [69.45 – 73.95]</td>
+        <td class="num">78.72</td>
+        <td class="num">250,249</td>
+        <td><span class="signal-badge">Strong</span></td>
+      </tr>
+      <tr>
+        <td><strong>Cerebrovascular Accident</strong></td>
+        <td class="num">13,371</td>
+        <td class="num">39.06 [38.47 – 39.65]</td>
+        <td class="num">54.77</td>
+        <td class="num">460,052</td>
+        <td><span class="signal-badge">Strong</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size:11px;color:#57606a;margin-top:4px">All three pass Evans (2001) criteria at any reasonable threshold. 95 % CIs are log-normal for PRR (Evans eq. 2) and Woolf for ROR. Chi-square uses Yates continuity correction on the raw 2 × 2 table.</p>
+
+  
+  <h2>2 · Scan Context — All Reactions Evaluated</h2>
+  <p>Across 50 most-reported reactions, 36 signals were flagged (35 clinical). Cardiovascular terms dominate by case volume and PRR magnitude. Selected notable reactions beyond top 3:</p>
+  <table>
+    <thead>
+      <tr><th>Reaction</th><th>n</th><th>PRR</th><th>χ²</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Angina Pectoris</td><td class="num">2,675</td><td class="num">46.8</td><td class="num">108,712</td></tr>
+      <tr><td>Transient Ischaemic Attack</td><td class="num">2,160</td><td class="num">31.1</td><td class="num">59,016</td></tr>
+      <tr><td>Pulmonary Embolism</td><td class="num">2,395</td><td class="num">11.8</td><td class="num">23,093</td></tr>
+      <tr><td>Deep Vein Thrombosis</td><td class="num">1,320</td><td class="num">9.4</td><td class="num">9,766</td></tr>
+      <tr><td>Hypertension</td><td class="num">5,244</td><td class="num">11.6</td><td class="num">49,992</td></tr>
+      <tr><td>Renal Failure</td><td class="num">1,471</td><td class="num">5.1</td><td class="num">4,797</td></tr>
+    </tbody>
+  </table>
+
+  
+  <h2>3 · Organ-System Picture</h2>
+  <p>Case counts by MedDRA System Organ Class (heuristic mapping; confirm against licensed MedDRA before regulatory use):</p>
+  <div class="soc-grid">
+    <div class="soc-row">
+      <div class="soc-name">Cardiac disorders</div>
+      <div class="bar-track"><div class="bar-fill high" style="width:100%"></div></div>
+      <div class="soc-n">36,584 · max PRR 72</div>
+    </div>
+    <div class="soc-row">
+      <div class="soc-name">Nervous system</div>
+      <div class="bar-track"><div class="bar-fill high" style="width:42%"></div></div>
+      <div class="soc-n">15,530 · max PRR 39</div>
+    </div>
+    <div class="soc-row">
+      <div class="soc-name">Vascular disorders</div>
+      <div class="bar-track"><div class="bar-fill" style="width:36%"></div></div>
+      <div class="soc-n">13,329 · max PRR 75</div>
+    </div>
+    <div class="soc-row">
+      <div class="soc-name">General / admin site</div>
+      <div class="bar-track"><div class="bar-fill" style="width:19%"></div></div>
+      <div class="soc-n">6,805 · max PRR 14</div>
+    </div>
+    <div class="soc-row">
+      <div class="soc-name">Psychiatric</div>
+      <div class="bar-track"><div class="bar-fill" style="width:18%"></div></div>
+      <div class="soc-n">6,744 · max PRR 7.5</div>
+    </div>
+    <div class="soc-row">
+      <div class="soc-name">Respiratory / thoracic</div>
+      <div class="bar-track"><div class="bar-fill" style="width:14%"></div></div>
+      <div class="soc-n">5,030 · max PRR 11.8</div>
+    </div>
+    <div class="soc-row">
+      <div class="soc-name">Musculoskeletal</div>
+      <div class="bar-track"><div class="bar-fill" style="width:11%"></div></div>
+      <div class="soc-n">3,969 · max PRR 9.7</div>
+    </div>
+    <div class="soc-row">
+      <div class="soc-name">Metabolism / nutrition</div>
+      <div class="bar-track"><div class="bar-fill" style="width:10%"></div></div>
+      <div class="soc-n">3,803 · max PRR 54.7</div>
+    </div>
+    <div class="soc-row">
+      <div class="soc-name">Renal / urinary</div>
+      <div class="bar-track"><div class="bar-fill" style="width:7%"></div></div>
+      <div class="soc-n">2,457 · max PRR 9.9</div>
+    </div>
+    <div class="soc-row">
+      <div class="soc-name">Gastrointestinal</div>
+      <div class="bar-track"><div class="bar-fill" style="width:7%"></div></div>
+      <div class="soc-n">2,681 · max PRR 9.7</div>
+    </div>
+  </div>
+  <p style="font-size:11px;color:#57606a;margin-top:8px">Red bars: SOCs where max PRR ≥ 30. The cardiovascular cluster (cardiac + nervous system + vascular) accounts for &gt; 65,000 cases — the overwhelming majority of the signal burden.</p>
+
+  
+  <h2>4 · Representative Raw FAERS Reports</h2>
+
+  <p style="font-size:12px;font-weight:600;margin-bottom:4px;color:#57606a">Myocardial Infarction</p>
+  <div class="case-grid">
+    <div class="case-card">
+      <div class="case-id">Report #10044867 · Received 2014-03-28</div>
+      <div class="case-detail">Male, 56 yrs · Serious: hospitalisation</div>
+      <div class="case-detail reactions">Reactions: Myocardial infarction, Cerebrovascular accident, Coronary artery disease, VIIth nerve paralysis</div>
+      <div class="case-detail drugs">Co-drugs: Avandia (rosiglitazone), Vioxx</div>
+    </div>
+    <div class="case-card">
+      <div class="case-id">Report #10104806 · Received 2014-04-24</div>
+      <div class="case-detail">Male, 63 yrs · Serious: hospitalisation + <strong>death</strong></div>
+      <div class="case-detail reactions">Reactions: Myocardial infarction (×2), Cardiac failure congestive</div>
+      <div class="case-detail drugs">Co-drugs: Zocor, Amitriptyline, Pentoxifylline, Vioxx, Plavix, Cardizem CD, Prilosec, Avandia</div>
+    </div>
+  </div>
+
+  <p style="font-size:12px;font-weight:600;margin-bottom:4px;margin-top:12px;color:#57606a">Cerebrovascular Accident</p>
+  <div class="case-grid">
+    <div class="case-card">
+      <div class="case-id">Report #10044867 · Received 2014-03-28</div>
+      <div class="case-detail">Male, 56 yrs · Serious: hospitalisation</div>
+      <div class="case-detail reactions">Reactions: CVA, MI, Coronary artery disease, VIIth nerve paralysis</div>
+      <div class="case-detail drugs">Co-drugs: Avandia, Vioxx</div>
+    </div>
+    <div class="case-card">
+      <div class="case-id">Report #10096511 · Received 2014-04-22</div>
+      <div class="case-detail">Female, 31 yrs · Serious: hospitalisation</div>
+      <div class="case-detail reactions">Reactions: CVA, Pulmonary embolism, DVT, Thrombosis, Injury, Pain</div>
+      <div class="case-detail drugs">Co-drugs: Yaz, Yasmin (OCP), Vioxx, Morphine, Xanax, Elavil, Lortab</div>
+    </div>
+  </div>
+
+  <p style="font-size:12px;font-weight:600;margin-bottom:4px;margin-top:12px;color:#57606a">Coronary Artery Disease</p>
+  <div class="case-grid">
+    <div class="case-card">
+      <div class="case-id">Report #10044867 · Received 2014-03-28</div>
+      <div class="case-detail">Male, 56 yrs · Serious: hospitalisation</div>
+      <div class="case-detail reactions">Reactions: CAD, MI, CVA, VIIth nerve paralysis</div>
+      <div class="case-detail drugs">Co-drugs: Avandia, Vioxx</div>
+    </div>
+    <div class="case-card">
+      <div class="case-id">Report #10123176 · Received 2014-04-27</div>
+      <div class="case-detail">Male, 52 yrs · Serious: hospitalisation</div>
+      <div class="case-detail reactions">Reactions: CAD, Myocardial infarction, Coronary artery bypass</div>
+      <div class="case-detail drugs">Co-drugs: Toprol XL, Avandia, Lotrel, Vioxx, Glucovance, Skelaxin, Lexapro, Zocor</div>
+    </div>
+  </div>
+  <p style="font-size:11px;color:#57606a;margin-top:6px">Note: Multiple reports feature Avandia (rosiglitazone) as a co-drug. Report #10044867 appears across all three signal queries — a single complex case contributing to multiple event categories.</p>
+
+  
+  <h2>5 · Likely Reporting Biases</h2>
+  <ul class="bias-list">
+    <li><strong>Litigation-driven notoriety bias (primary confound).</strong> Rofecoxib was withdrawn in September 2004 and became the subject of the largest pharmaceutical litigation in US history. Reports received years after withdrawal — visible in the 2014 receive dates in the case sample — are overwhelmingly legal-process submissions rather than spontaneous clinical observations. This artificially inflates n and chi² without adding independent signal evidence.</li>
+    <li><strong>Channelling / confounding by indication.</strong> Rofecoxib was preferentially prescribed to patients with osteoarthritis and chronic pain who frequently had underlying cardiovascular risk factors (hypertension, dyslipidaemia, diabetes). Cardiovascular events in this population may partly reflect background disease burden rather than drug effect.</li>
+    <li><strong>Co-reporter clustering.</strong> The same report (#10044867) appears in MI, CVA, and CAD queries simultaneously. A single complex case inflates counts across multiple reaction terms and should not be treated as independent evidence for each.</li>
+    <li><strong>Masking by other drugs.</strong> Rosiglitazone (Avandia) appears as a co-drug in several sampled reports. Its own cardiovascular controversy generates reports in the same MI / CAD space, potentially inflating the background (c cell) for rofecoxib and, paradoxically, could understate true PRRs if both drugs appear together; the direction is case-mix dependent.</li>
+    <li><strong>Selective under-reporting of non-events.</strong> FAERS captures adverse events, not drug exposures without events; denominator data are unavailable. PRR measures reporting disproportionality, not event rate.</li>
+  </ul>
+
+  
+  <h2>6 · Recommended Next Steps</h2>
+  <ol class="step-list">
+    <li><strong>Run signal_emergence_timeline</strong> for MI and CVA with <code>exclude_drugs="rosiglitazone, avandia"</code> to correct for masking by the co-reported rosiglitazone signal and establish when the rofecoxib cardiovascular signal would first have met detection criteria in a prospective FAERS screen.</li>
+    <li><strong>Stratify by receive-date cohort.</strong> Separate pre-withdrawal (≤ 2004) from post-withdrawal reports to isolate litigation-era submissions and assess whether the signal was detectable from real-time reporting before the VIGOR trial results were public.</li>
+    <li><strong>Apply Bayesian metrics (BCPNN / EBGM)</strong> as a cross-check; PRR in highly imbalanced tables (n = 19 k vs background n = 182 k) can be numerically unstable; Bayesian shrinkage provides a complementary, more conservative signal estimate.</li>
+    <li><strong>Link to structured clinical evidence.</strong> Cross-reference signal reactions against the VIGOR (2000) and APPROVe (2004) RCT results and the FDA CDER safety review (2004) to verify pharmacological plausibility and regulatory timeline consistency.</li>
+    <li><strong>De-duplicate multi-reaction reports</strong> before presenting any case-count figure publicly; the current n values reflect event–report pairs, not unique patients.</li>
+  </ol>
+
+  <div class="disclaimer">
+    <strong>Causation disclaimer:</strong> All statistics in this memo measure disproportionality of <em>reporting</em> in a spontaneous adverse-event database. A high PRR indicates that events are reported more often alongside this drug than alongside other drugs in the same database. It does not establish that the drug caused the event, does not estimate population-level incidence, and must not be used as a standalone basis for regulatory action without further analysis.
+  </div>
+
+  <div class="footer">Made with IBM Bob</div>
+</div>
+</body>
+</html>

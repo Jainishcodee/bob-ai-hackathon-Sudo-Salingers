@@ -9,18 +9,18 @@
 # =============================================================================
 
 team:
-  name: "Sudo Salingers"               # REQUIRED — e.g., "Orion Squad"
+  name: "Sudo Salingers"               
   track: "AI"                          # REQUIRED — one of: AI | DevOps | Sustainability | Open
   lead:
-    name: "Jainish"                    # REQUIRED — TODO: confirm full name
-    email: "jainishshah796@gmail.com"     # REQUIRED
-  members:                             # TODO: add every teammate (name + email) — needed for certificates
-    - name: "Vandna Shah"
-      email: ""
+    name: "Jainish Shah"                    
+    email: "d24ce180@chatrusat.edu.in"     
+  members:
+    - name: "Bhavya Radiya"
+      email: "d24ce168@charusat.edu.in"
+    - name: "Vandan Shah"
+      email: "24BCA229@charusat.edu.in"
     - name: "Jinam Shah"
-      email: ""
-    - name: "Bhavy Radiya"
-      email: ""
+      email: "D26DCE140@charusat.edu.in"
 
 submission:
   title: "Pharos — Drug Safety Signal Detector & Regulatory Submission Readiness Checker"   # REQUIRED
