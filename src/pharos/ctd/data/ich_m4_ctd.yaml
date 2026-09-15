@@ -1,0 +1,478 @@
+# ICH M4 — Organisation of the Common Technical Document (CTD) for the Registration of
+# Pharmaceuticals for Human Use. Structure per ICH M4(R4), M4Q(R1), M4S(R2), M4E(R2).
+#
+# This file is the machine-readable "checklist" Pharos compares a dossier outline against.
+#
+#   required : true  → a New Drug Application / MAA is expected to contain it. Missing = gap.
+#              false → applicability depends on product type; absence is reported as
+#                      informational, never as a gap.
+#   weight   : 3 = critical (rejection-grade if missing), 2 = major, 1 = minor/administrative.
+#   note     : one line of "why this matters" that Bob can use when writing the gap report.
+#
+# Module 1 is region-specific and is therefore provided as variants (US / EU). Modules 2–5
+# are harmonised across ICH regions.
+
+version: "ICH M4(R4) CTD — Pharos checklist encoding v1"
+
+modules:
+  - id: "1"
+    title: "Administrative Information and Prescribing Information"
+    regional: true
+    note: "Region-specific. Content differs between FDA (US), EMA (EU), PMDA (JP) etc."
+    variants:
+      US:
+        - id: "1.1"
+          title: "Forms (FDA 356h, 3674, 3454/3455)"
+          required: true
+          weight: 2
+          note: "FDA Form 356h is the legal application form; without it the submission is not filed."
+        - id: "1.2"
+          title: "Cover Letters"
+          required: true
+          weight: 1
+          note: "States application type, requested actions and contacts."
+        - id: "1.3"
+          title: "Administrative Information (contact/sponsor, field copy certification, debarment certification, financial disclosure, patent information)"
+          required: true
+          weight: 3
+          note: "Debarment certification and financial disclosure (21 CFR 54) are statutory; omission is a refuse-to-file issue."
+        - id: "1.4"
+          title: "References (letters of authorisation, cross-references to other applications)"
+          required: false
+          weight: 1
+          note: "Only when relying on another application or a DMF."
+        - id: "1.9"
+          title: "Pediatric Administrative Information (PREA plan / waiver / deferral)"
+          required: true
+          weight: 2
+          note: "PREA requires a pediatric assessment, waiver or deferral request for most NDAs/BLAs."
+        - id: "1.12"
+          title: "Other Correspondence (request for waiver, request for comments/advice)"
+          required: false
+          weight: 1
+          note: "As applicable."
+        - id: "1.14"
+          title: "Labeling (draft prescribing information, patient labeling, carton and container labels)"
+          required: true
+          weight: 3
+          note: "Proposed labeling is a required component of the NDA under 21 CFR 314.50(e)."
+        - id: "1.16"
+          title: "Risk Management Plan / REMS proposal (if applicable)"
+          required: false
+          weight: 2
+          note: "Required only if FDA determines a REMS is necessary."
+      EU:
+        - id: "1.0"
+          title: "Cover Letter"
+          required: true
+          weight: 1
+          note: "Identifies procedure type and scope."
+        - id: "1.1"
+          title: "Comprehensive Table of Contents"
+          required: true
+          weight: 1
+          note: "Navigational; required for eCTD validation."
+        - id: "1.2"
+          title: "Application Form"
+          required: true
+          weight: 3
+          note: "Legal basis of the application (Art. 8(3), 10, 10a etc.) is declared here."
+        - id: "1.3"
+          title: "Product Information (SmPC, labelling, package leaflet, mock-ups, Braille, readability test)"
+          required: true
+          weight: 3
+          note: "SmPC and PL are the approved product information; the readability user test is mandatory."
+        - id: "1.4"
+          title: "Information about the Experts (quality, non-clinical, clinical — signed declarations)"
+          required: true
+          weight: 2
+          note: "Signed expert declarations are required under Annex I of Directive 2001/83/EC."
+        - id: "1.5"
+          title: "Specific Requirements for Different Types of Applications"
+          required: false
+          weight: 1
+          note: "Generics, hybrids, biosimilars, well-established use — as applicable."
+        - id: "1.6"
+          title: "Environmental Risk Assessment"
+          required: true
+          weight: 2
+          note: "An ERA (or justification for its absence) is required for every MAA."
+        - id: "1.7"
+          title: "Information relating to Orphan Market Exclusivity"
+          required: false
+          weight: 1
+          note: "Only for products with or overlapping an orphan designation."
+        - id: "1.8"
+          title: "Information relating to Pharmacovigilance (PSMF summary, Risk Management Plan)"
+          required: true
+          weight: 3
+          note: "An RMP is mandatory for every new MAA (Regulation (EC) 726/2004)."
+        - id: "1.9"
+          title: "Information relating to Clinical Trials (statement on GCP / ethical conduct outside the EU)"
+          required: true
+          weight: 2
+          note: "Declaration that trials conducted outside the EU meet EU ethical standards."
+        - id: "1.10"
+          title: "Information relating to Paediatrics (PIP compliance / waiver)"
+          required: true
+          weight: 2
+          note: "Paediatric Regulation requires a PIP compliance check or waiver for new products."
+
+  - id: "2"
+    title: "Common Technical Document Summaries"
+    regional: false
+    note: "High-level summaries written for the assessor. Each one distils the corresponding Module 3/4/5 data."
+    sections:
+      - id: "2.1"
+        title: "CTD Table of Contents (Modules 2–5)"
+        required: true
+        weight: 1
+        note: "Navigational."
+      - id: "2.2"
+        title: "CTD Introduction"
+        required: true
+        weight: 1
+        note: "One page: pharmacological class, mode of action, proposed indication."
+      - id: "2.3"
+        title: "Quality Overall Summary (QOS)"
+        required: true
+        weight: 3
+        note: "The assessor's entry point to Module 3. Must mirror 3.2.S and 3.2.P."
+      - id: "2.4"
+        title: "Nonclinical Overview"
+        required: true
+        weight: 3
+        note: "Integrated critical assessment of pharmacology, PK and toxicology — not a restatement of 2.6."
+      - id: "2.5"
+        title: "Clinical Overview"
+        required: true
+        weight: 3
+        note: "The benefit–risk argument. Reviewers read this first; a weak or missing 2.5 undermines the whole application."
+      - id: "2.6"
+        title: "Nonclinical Written and Tabulated Summaries"
+        required: true
+        weight: 2
+        note: "Written + tabulated summaries for pharmacology, pharmacokinetics and toxicology (2.6.1–2.6.7)."
+      - id: "2.7"
+        title: "Clinical Summary"
+        required: true
+        weight: 3
+        note: "Includes 2.7.3 Summary of Clinical Efficacy and 2.7.4 Summary of Clinical Safety — the detailed evidence behind 2.5."
+
+  - id: "3"
+    title: "Quality"
+    regional: false
+    note: "Chemistry, manufacturing and controls (CMC). S = drug substance, P = drug product."
+    sections:
+      - id: "3.1"
+        title: "Table of Contents of Module 3"
+        required: true
+        weight: 1
+        note: "Navigational."
+      - id: "3.2"
+        title: "Body of Data"
+        children:
+          - id: "3.2.S"
+            title: "Drug Substance"
+            children:
+              - id: "3.2.S.1"
+                title: "General Information (nomenclature, structure, general properties)"
+                required: true
+                weight: 2
+                note: "Establishes the identity of the molecule."
+              - id: "3.2.S.2"
+                title: "Manufacture (manufacturers, process, controls of materials, critical steps, process validation, development)"
+                required: true
+                weight: 3
+                note: "GMP inspection is planned against this section."
+              - id: "3.2.S.3"
+                title: "Characterisation (structure elucidation, impurities)"
+                required: true
+                weight: 2
+                note: "Impurity profile must be justified against ICH Q3A."
+              - id: "3.2.S.4"
+                title: "Control of Drug Substance (specification, analytical procedures, validation, batch analyses, justification)"
+                required: true
+                weight: 3
+                note: "The release specification. Missing validation of analytical methods is a classic deficiency."
+              - id: "3.2.S.5"
+                title: "Reference Standards or Materials"
+                required: true
+                weight: 1
+                note: "Traceability of analytical results."
+              - id: "3.2.S.6"
+                title: "Container Closure System"
+                required: true
+                weight: 1
+                note: "Storage and shipping protection of the substance."
+              - id: "3.2.S.7"
+                title: "Stability (summary, post-approval commitment, data)"
+                required: true
+                weight: 3
+                note: "Retest period is set from this data (ICH Q1A)."
+          - id: "3.2.P"
+            title: "Drug Product"
+            children:
+              - id: "3.2.P.1"
+                title: "Description and Composition of the Drug Product"
+                required: true
+                weight: 2
+                note: "Qualitative and quantitative composition — the basis for the label."
+              - id: "3.2.P.2"
+                title: "Pharmaceutical Development"
+                required: true
+                weight: 2
+                note: "Formulation and process development rationale (ICH Q8)."
+              - id: "3.2.P.3"
+                title: "Manufacture (manufacturers, batch formula, process, controls of critical steps, process validation)"
+                required: true
+                weight: 3
+                note: "Commercial process description and validation."
+              - id: "3.2.P.4"
+                title: "Control of Excipients"
+                required: true
+                weight: 2
+                note: "Including excipients of human/animal origin and novel excipients."
+              - id: "3.2.P.5"
+                title: "Control of Drug Product (specification, analytical procedures, validation, batch analyses, impurities, justification)"
+                required: true
+                weight: 3
+                note: "Release and shelf-life specification of the finished product."
+              - id: "3.2.P.6"
+                title: "Reference Standards or Materials"
+                required: true
+                weight: 1
+                note: "Traceability."
+              - id: "3.2.P.7"
+                title: "Container Closure System"
+                required: true
+                weight: 2
+                note: "Suitability, extractables/leachables where relevant."
+              - id: "3.2.P.8"
+                title: "Stability (summary and conclusion, post-approval protocol, data)"
+                required: true
+                weight: 3
+                note: "Shelf life and storage conditions on the label derive from this section (ICH Q1A/Q1E)."
+          - id: "3.2.A"
+            title: "Appendices"
+            children:
+              - id: "3.2.A.1"
+                title: "Facilities and Equipment"
+                required: false
+                weight: 1
+                note: "Required for biotech products (ICH M4Q); optional for small molecules."
+              - id: "3.2.A.2"
+                title: "Adventitious Agents Safety Evaluation"
+                required: false
+                weight: 2
+                note: "Required whenever materials of human or animal origin are used (viral/TSE safety)."
+              - id: "3.2.A.3"
+                title: "Excipients (novel excipients — full S-style data)"
+                required: false
+                weight: 2
+                note: "Only when a novel excipient is used."
+          - id: "3.2.R"
+            title: "Regional Information"
+            required: false
+            weight: 1
+            note: "e.g. US: executed batch records, method validation package; EU: process validation scheme, medical device."
+      - id: "3.3"
+        title: "Literature References"
+        required: true
+        weight: 1
+        note: "Copies of references cited in Module 3."
+
+  - id: "4"
+    title: "Nonclinical Study Reports"
+    regional: false
+    note: "Animal and in-vitro studies. Order follows ICH M4S."
+    sections:
+      - id: "4.1"
+        title: "Table of Contents of Module 4"
+        required: true
+        weight: 1
+        note: "Navigational."
+      - id: "4.2"
+        title: "Study Reports"
+        children:
+          - id: "4.2.1"
+            title: "Pharmacology"
+            children:
+              - id: "4.2.1.1"
+                title: "Primary Pharmacodynamics"
+                required: true
+                weight: 2
+                note: "Proof of mechanism in relevant models."
+              - id: "4.2.1.2"
+                title: "Secondary Pharmacodynamics"
+                required: true
+                weight: 1
+                note: "Off-target pharmacology screens."
+              - id: "4.2.1.3"
+                title: "Safety Pharmacology"
+                required: true
+                weight: 3
+                note: "ICH S7A/S7B core battery: CNS, cardiovascular (hERG/QT), respiratory. Missing S7B data is a frequent clinical hold reason."
+              - id: "4.2.1.4"
+                title: "Pharmacodynamic Drug Interactions"
+                required: false
+                weight: 1
+                note: "Where a PD interaction is anticipated."
+          - id: "4.2.2"
+            title: "Pharmacokinetics"
+            children:
+              - id: "4.2.2.1"
+                title: "Analytical Methods and Validation Reports"
+                required: true
+                weight: 2
+                note: "Bioanalytical method validation underpins all PK/TK data."
+              - id: "4.2.2.2"
+                title: "Absorption"
+                required: true
+                weight: 2
+                note: ""
+              - id: "4.2.2.3"
+                title: "Distribution"
+                required: true
+                weight: 2
+                note: "Including plasma protein binding and tissue distribution."
+              - id: "4.2.2.4"
+                title: "Metabolism"
+                required: true
+                weight: 2
+                note: "Metabolite identification; supports human metabolite safety (ICH M3(R2))."
+              - id: "4.2.2.5"
+                title: "Excretion"
+                required: true
+                weight: 2
+                note: ""
+              - id: "4.2.2.6"
+                title: "Pharmacokinetic Drug Interactions (nonclinical)"
+                required: true
+                weight: 1
+                note: "CYP inhibition/induction, transporter studies."
+              - id: "4.2.2.7"
+                title: "Other Pharmacokinetic Studies"
+                required: false
+                weight: 1
+                note: ""
+          - id: "4.2.3"
+            title: "Toxicology"
+            children:
+              - id: "4.2.3.1"
+                title: "Single-Dose Toxicity"
+                required: true
+                weight: 2
+                note: "Two species; may be covered by dose-escalation studies (ICH M3(R2))."
+              - id: "4.2.3.2"
+                title: "Repeat-Dose Toxicity"
+                required: true
+                weight: 3
+                note: "Duration must support the clinical dosing duration (ICH M3(R2) Table 1). The most common source of Module 4 deficiencies."
+              - id: "4.2.3.3"
+                title: "Genotoxicity (in vitro and in vivo)"
+                required: true
+                weight: 3
+                note: "ICH S2(R1) standard battery is mandatory before Phase 2 and for marketing."
+              - id: "4.2.3.4"
+                title: "Carcinogenicity"
+                required: true
+                weight: 3
+                note: "Required for chronic-use products (≥6 months) under ICH S1A; absence must be justified."
+              - id: "4.2.3.5"
+                title: "Reproductive and Developmental Toxicity"
+                required: true
+                weight: 3
+                note: "Fertility, embryo-fetal development, pre/postnatal (ICH S5(R3)). Drives pregnancy labelling."
+              - id: "4.2.3.6"
+                title: "Local Tolerance"
+                required: false
+                weight: 1
+                note: "Route-dependent (parenteral, dermal, ocular)."
+              - id: "4.2.3.7"
+                title: "Other Toxicity Studies (antigenicity, immunotoxicity, mechanistic, dependence, metabolites, impurities)"
+                required: false
+                weight: 1
+                note: "As applicable."
+      - id: "4.3"
+        title: "Literature References"
+        required: true
+        weight: 1
+        note: "Copies of references cited in Module 4."
+
+  - id: "5"
+    title: "Clinical Study Reports"
+    regional: false
+    note: "Human data. Study reports follow ICH E3 format."
+    sections:
+      - id: "5.1"
+        title: "Table of Contents of Module 5"
+        required: true
+        weight: 1
+        note: "Navigational."
+      - id: "5.2"
+        title: "Tabular Listing of All Clinical Studies"
+        required: true
+        weight: 2
+        note: "Every study in the programme, one row each — the reviewer's map of Module 5."
+      - id: "5.3"
+        title: "Clinical Study Reports"
+        children:
+          - id: "5.3.1"
+            title: "Reports of Biopharmaceutic Studies (BA, comparative BA/BE, in vitro–in vivo correlation, bioanalytical methods)"
+            required: true
+            weight: 2
+            note: "Links the clinical formulation to the commercial formulation."
+          - id: "5.3.2"
+            title: "Reports of Studies Pertinent to Pharmacokinetics using Human Biomaterials"
+            required: false
+            weight: 1
+            note: "Plasma protein binding, hepatic metabolism, drug-interaction in human tissue."
+          - id: "5.3.3"
+            title: "Reports of Human Pharmacokinetic Studies (healthy subjects, patients, intrinsic/extrinsic factors, population PK)"
+            required: true
+            weight: 3
+            note: "Dose selection and special-population dosing derive from here."
+          - id: "5.3.4"
+            title: "Reports of Human Pharmacodynamic Studies"
+            required: true
+            weight: 2
+            note: "Includes the thorough QT study (ICH E14) where required."
+          - id: "5.3.5"
+            title: "Reports of Efficacy and Safety Studies"
+            children:
+              - id: "5.3.5.1"
+                title: "Study Reports of Controlled Clinical Studies Pertinent to the Claimed Indication"
+                required: true
+                weight: 3
+                note: "The pivotal trials. Without adequate and well-controlled studies there is no approval (21 CFR 314.126)."
+              - id: "5.3.5.2"
+                title: "Study Reports of Uncontrolled Clinical Studies"
+                required: true
+                weight: 2
+                note: "Open-label extensions and long-term safety cohorts."
+              - id: "5.3.5.3"
+                title: "Reports of Analyses of Data from More than One Study (ISS / ISE)"
+                required: true
+                weight: 3
+                note: "Integrated Summary of Safety and Efficacy — FDA requires these under 21 CFR 314.50(d)(5)."
+              - id: "5.3.5.4"
+                title: "Other Clinical Study Reports"
+                required: false
+                weight: 1
+                note: ""
+          - id: "5.3.6"
+            title: "Reports of Post-Marketing Experience"
+            required: false
+            weight: 1
+            note: "Only where the product is already marketed somewhere."
+          - id: "5.3.7"
+            title: "Case Report Forms and Individual Patient Listings"
+            required: true
+            weight: 2
+            note: "CRFs for deaths, SAEs and discontinuations due to AEs are required by FDA."
+      - id: "5.4"
+        title: "Literature References"
+        required: true
+        weight: 1
+        note: "Copies of references cited in Module 5."

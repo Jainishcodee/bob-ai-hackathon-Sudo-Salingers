@@ -1,0 +1,131 @@
+# A realistic mid-programme dossier outline for a fictional chronic-use small molecule.
+# Deliberately imperfect: missing sections, drafts, one collapsed parent, one stray entry.
+product: "Examplimab 100 mg tablets (fictional)"
+applicant: "Pharos Pharma Ltd"
+region: US
+sections:
+  # Module 1 — administrative
+  - id: "1.1"
+    title: "Forms"
+    status: complete
+  - id: "1.2"
+    title: "Cover Letters"
+    status: complete
+  - id: "1.3"
+    title: "Administrative Information"
+    status: draft
+  - id: "1.9"
+    title: "Pediatric Administrative Information"
+    status: complete
+  # 1.14 Labeling is missing entirely — a rejection-grade gap
+
+  # Module 2 — summaries
+  - id: "2.1"
+    status: complete
+  - id: "2.2"
+    status: complete
+  - id: "2.3"
+    title: "Quality Overall Summary"
+    status: complete
+  - id: "2.4"
+    title: "Nonclinical Overview"
+    status: complete
+  - id: "2.5"
+    title: "Clinical Overview"
+    status: draft
+  - id: "2.6"
+    status: complete
+  - id: "2.7"
+    title: "Clinical Summary"
+    status: draft
+
+  # Module 3 — quality
+  - id: "3.1"
+    status: complete
+  - id: "3.2.S.1"
+    status: complete
+  - id: "3.2.S.2"
+    status: complete
+  - id: "3.2.S.3"
+    status: complete
+  - id: "3.2.S.4"
+    status: complete
+  - id: "3.2.S.5"
+    status: complete
+  - id: "3.2.S.6"
+    status: complete
+  - id: "3.2.S.7"
+    status: complete
+  - id: "3.2.P.1"
+    status: complete
+  - id: "3.2.P.2"
+    status: complete
+  - id: "3.2.P.3"
+    status: complete
+  - id: "3.2.P.4"
+    status: complete
+  - id: "3.2.P.5"
+    status: complete
+  - id: "3.2.P.6"
+    status: complete
+  - id: "3.2.P.7"
+    status: complete
+  # 3.2.P.8 Stability is missing — shelf life cannot be set without it
+  - id: "3.3"
+    status: complete
+
+  # Module 4 — nonclinical
+  - id: "4.1"
+    status: complete
+  - id: "4.2.1.1"
+    status: complete
+  - id: "4.2.1.2"
+    status: complete
+  - id: "4.2.1.3"
+    title: "Safety Pharmacology"
+    status: complete
+  - id: "4.2.2.1"
+    status: complete
+  - id: "4.2.2.2"
+    status: complete
+  - id: "4.2.2.3"
+    status: complete
+  - id: "4.2.2.4"
+    status: complete
+  - id: "4.2.2.5"
+    status: complete
+  - id: "4.2.2.6"
+    status: complete
+  # The team listed "4.2.3 Toxicology" as one block instead of its seven sub-sections:
+  - id: "4.2.3"
+    title: "Toxicology"
+    status: complete
+  - id: "4.3"
+    status: complete
+
+  # Module 5 — clinical
+  - id: "5.1"
+    status: complete
+  - id: "5.2"
+    status: complete
+  - id: "5.3.1"
+    status: complete
+  - id: "5.3.3"
+    status: complete
+  - id: "5.3.4"
+    status: complete
+  - id: "5.3.5.1"
+    title: "Controlled clinical studies"
+    status: complete
+  - id: "5.3.5.2"
+    status: complete
+  # 5.3.5.3 Integrated Summaries (ISS/ISE) missing
+  - id: "5.3.7"
+    status: draft
+  - id: "5.4"
+    status: complete
+
+  # Something that is not a CTD section at all
+  - id: "9.1"
+    title: "Marketing launch plan"
+    status: complete

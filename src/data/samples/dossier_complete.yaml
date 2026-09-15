@@ -1,0 +1,289 @@
+﻿product: Examplimab 100 mg tablets (fictional) - complete dossier
+applicant: Pharos Pharma Ltd
+region: US
+sections:
+- id: '1.1'
+  title: Forms (FDA 356h, 3674, 3454/3455)
+  status: complete
+  required: true
+- id: '1.2'
+  title: Cover Letters
+  status: complete
+  required: true
+- id: '1.3'
+  title: Administrative Information (contact/sponsor, field copy certification, debarment
+    certification, financial disclosure, patent information)
+  status: complete
+  required: true
+- id: '1.4'
+  title: References (letters of authorisation, cross-references to other applications)
+  status: complete
+  required: false
+- id: '1.9'
+  title: Pediatric Administrative Information (PREA plan / waiver / deferral)
+  status: complete
+  required: true
+- id: '1.12'
+  title: Other Correspondence (request for waiver, request for comments/advice)
+  status: complete
+  required: false
+- id: '1.14'
+  title: Labeling (draft prescribing information, patient labeling, carton and container
+    labels)
+  status: complete
+  required: true
+- id: '1.16'
+  title: Risk Management Plan / REMS proposal (if applicable)
+  status: complete
+  required: false
+- id: '2.1'
+  title: CTD Table of Contents (Modules 2â€“5)
+  status: complete
+  required: true
+- id: '2.2'
+  title: CTD Introduction
+  status: complete
+  required: true
+- id: '2.3'
+  title: Quality Overall Summary (QOS)
+  status: complete
+  required: true
+- id: '2.4'
+  title: Nonclinical Overview
+  status: complete
+  required: true
+- id: '2.5'
+  title: Clinical Overview
+  status: complete
+  required: true
+- id: '2.6'
+  title: Nonclinical Written and Tabulated Summaries
+  status: complete
+  required: true
+- id: '2.7'
+  title: Clinical Summary
+  status: complete
+  required: true
+- id: '3.1'
+  title: Table of Contents of Module 3
+  status: complete
+  required: true
+- id: 3.2.S.1
+  title: General Information (nomenclature, structure, general properties)
+  status: complete
+  required: true
+- id: 3.2.S.2
+  title: Manufacture (manufacturers, process, controls of materials, critical steps,
+    process validation, development)
+  status: complete
+  required: true
+- id: 3.2.S.3
+  title: Characterisation (structure elucidation, impurities)
+  status: complete
+  required: true
+- id: 3.2.S.4
+  title: Control of Drug Substance (specification, analytical procedures, validation,
+    batch analyses, justification)
+  status: complete
+  required: true
+- id: 3.2.S.5
+  title: Reference Standards or Materials
+  status: complete
+  required: true
+- id: 3.2.S.6
+  title: Container Closure System
+  status: complete
+  required: true
+- id: 3.2.S.7
+  title: Stability (summary, post-approval commitment, data)
+  status: complete
+  required: true
+- id: 3.2.P.1
+  title: Description and Composition of the Drug Product
+  status: complete
+  required: true
+- id: 3.2.P.2
+  title: Pharmaceutical Development
+  status: complete
+  required: true
+- id: 3.2.P.3
+  title: Manufacture (manufacturers, batch formula, process, controls of critical
+    steps, process validation)
+  status: complete
+  required: true
+- id: 3.2.P.4
+  title: Control of Excipients
+  status: complete
+  required: true
+- id: 3.2.P.5
+  title: Control of Drug Product (specification, analytical procedures, validation,
+    batch analyses, impurities, justification)
+  status: complete
+  required: true
+- id: 3.2.P.6
+  title: Reference Standards or Materials
+  status: complete
+  required: true
+- id: 3.2.P.7
+  title: Container Closure System
+  status: complete
+  required: true
+- id: 3.2.P.8
+  title: Stability (summary and conclusion, post-approval protocol, data)
+  status: complete
+  required: true
+- id: 3.2.A.1
+  title: Facilities and Equipment
+  status: complete
+  required: false
+- id: 3.2.A.2
+  title: Adventitious Agents Safety Evaluation
+  status: complete
+  required: false
+- id: 3.2.A.3
+  title: Excipients (novel excipients â€” full S-style data)
+  status: complete
+  required: false
+- id: 3.2.R
+  title: Regional Information
+  status: complete
+  required: false
+- id: '3.3'
+  title: Literature References
+  status: complete
+  required: true
+- id: '4.1'
+  title: Table of Contents of Module 4
+  status: complete
+  required: true
+- id: 4.2.1.1
+  title: Primary Pharmacodynamics
+  status: complete
+  required: true
+- id: 4.2.1.2
+  title: Secondary Pharmacodynamics
+  status: complete
+  required: true
+- id: 4.2.1.3
+  title: Safety Pharmacology
+  status: complete
+  required: true
+- id: 4.2.1.4
+  title: Pharmacodynamic Drug Interactions
+  status: complete
+  required: false
+- id: 4.2.2.1
+  title: Analytical Methods and Validation Reports
+  status: complete
+  required: true
+- id: 4.2.2.2
+  title: Absorption
+  status: complete
+  required: true
+- id: 4.2.2.3
+  title: Distribution
+  status: complete
+  required: true
+- id: 4.2.2.4
+  title: Metabolism
+  status: complete
+  required: true
+- id: 4.2.2.5
+  title: Excretion
+  status: complete
+  required: true
+- id: 4.2.2.6
+  title: Pharmacokinetic Drug Interactions (nonclinical)
+  status: complete
+  required: true
+- id: 4.2.2.7
+  title: Other Pharmacokinetic Studies
+  status: complete
+  required: false
+- id: 4.2.3.1
+  title: Single-Dose Toxicity
+  status: complete
+  required: true
+- id: 4.2.3.2
+  title: Repeat-Dose Toxicity
+  status: complete
+  required: true
+- id: 4.2.3.3
+  title: Genotoxicity (in vitro and in vivo)
+  status: complete
+  required: true
+- id: 4.2.3.4
+  title: Carcinogenicity
+  status: complete
+  required: true
+- id: 4.2.3.5
+  title: Reproductive and Developmental Toxicity
+  status: complete
+  required: true
+- id: 4.2.3.6
+  title: Local Tolerance
+  status: complete
+  required: false
+- id: 4.2.3.7
+  title: Other Toxicity Studies (antigenicity, immunotoxicity, mechanistic, dependence,
+    metabolites, impurities)
+  status: complete
+  required: false
+- id: '4.3'
+  title: Literature References
+  status: complete
+  required: true
+- id: '5.1'
+  title: Table of Contents of Module 5
+  status: complete
+  required: true
+- id: '5.2'
+  title: Tabular Listing of All Clinical Studies
+  status: complete
+  required: true
+- id: 5.3.1
+  title: Reports of Biopharmaceutic Studies (BA, comparative BA/BE, in vitroâ€“in vivo
+    correlation, bioanalytical methods)
+  status: complete
+  required: true
+- id: 5.3.2
+  title: Reports of Studies Pertinent to Pharmacokinetics using Human Biomaterials
+  status: complete
+  required: false
+- id: 5.3.3
+  title: Reports of Human Pharmacokinetic Studies (healthy subjects, patients, intrinsic/extrinsic
+    factors, population PK)
+  status: complete
+  required: true
+- id: 5.3.4
+  title: Reports of Human Pharmacodynamic Studies
+  status: complete
+  required: true
+- id: 5.3.5.1
+  title: Study Reports of Controlled Clinical Studies Pertinent to the Claimed Indication
+  status: complete
+  required: true
+- id: 5.3.5.2
+  title: Study Reports of Uncontrolled Clinical Studies
+  status: complete
+  required: true
+- id: 5.3.5.3
+  title: Reports of Analyses of Data from More than One Study (ISS / ISE)
+  status: complete
+  required: true
+- id: 5.3.5.4
+  title: Other Clinical Study Reports
+  status: complete
+  required: false
+- id: 5.3.6
+  title: Reports of Post-Marketing Experience
+  status: complete
+  required: false
+- id: 5.3.7
+  title: Case Report Forms and Individual Patient Listings
+  status: complete
+  required: true
+- id: '5.4'
+  title: Literature References
+  status: complete
+  required: true

@@ -1,0 +1,51 @@
+# --- secrets ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+pip-wheel-metadata/
+
+# --- streamlit -------------------------------------------------------------
+.streamlit/secrets.toml
+
+# --- node (in case a frontend is added later) ------------------------------
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# --- editors / os ----------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- pharos ----------------------------------------------------------------
+# The openFDA cache for the demo drugs IS committed on purpose (demo works offline).
+# Anything else generated locally is not:
+src/pharos/faers/cache/_scratch/
+*.scan.json
+pharos_*_scan.csv
+pharos_*_scan.json
+pharos_ctd_*.md
+pharos_ctd_*.json

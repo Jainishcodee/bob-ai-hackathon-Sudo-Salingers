@@ -1,0 +1,13 @@
+# Demo drug set for Pharos. Format:  NAME | alias1, alias2 | note shown in the UI
+# Every drug here was withdrawn or heavily restricted for a safety reason that is
+# visible in FAERS — the point of the demo is that the standard statistics find it.
+# openFDA data begins 2004, so for the older withdrawals this is a retrospective check.
+
+ROFECOXIB      | VIOXX                   | Withdrawn 2004 — myocardial infarction / cardiovascular thrombotic events
+VALDECOXIB     | BEXTRA                  | Withdrawn 2005 — Stevens-Johnson syndrome, cardiovascular risk
+ROSIGLITAZONE  | AVANDIA                 | Restricted 2010 (FDA) / withdrawn EU — myocardial infarction, cardiac failure
+CERIVASTATIN   | BAYCOL, LIPOBAY         | Withdrawn 2001 — rhabdomyolysis
+SIBUTRAMINE    | MERIDIA, REDUCTIL       | Withdrawn 2010 — cardiovascular events, stroke
+PROPOXYPHENE   | DARVON, DARVOCET        | Withdrawn 2010 — QT prolongation, cardiac arrhythmia
+METFORMIN      | GLUCOPHAGE              | Control: widely used, expected signal = lactic acidosis (known, labelled)
+IBUPROFEN      | ADVIL, MOTRIN           | Control: common OTC NSAID, expected GI bleeding / renal signals (known, labelled)
