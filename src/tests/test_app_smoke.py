@@ -47,3 +47,27 @@ def test_ctd_tab_shows_not_ready_for_incomplete_sample():
     labels = {m.label: m.value for m in at.metric}
     assert labels.get("Verdict") == "NOT READY"
     assert int(labels.get("Critical gaps", 0)) >= 3
+
+
+@pytest.mark.skipif(not any(CACHE.glob("*.json")), reason="openFDA cache not built — run `python -m pharos build-cache`")
+def test_avandia_hidden_signals_and_auto_timeline_render_from_cache():
+    """The Round-2 demo path: Avandia -> hidden signals as of 2006 -> timeline with the automatic rule."""
+    at = _app().run()
+    avandia = next(o for o in at.selectbox[0].options if o.startswith("ROSIGLITAZONE"))
+    at.selectbox[0].select(avandia).run()
+    assert at.text_input[0].value == "ROSIGLITAZONE"
+    at.button[0].click().run()                                   # Scan
+    assert not at.exception, [e.value for e in at.exception]
+
+    at.button(key="h_btn").click().run()                         # Find hidden signals (as of 2006 by default for Avandia)
+    assert not at.exception, [e.value for e in at.exception]
+    metrics = {m.label: m.value for m in at.metric}
+    assert metrics.get("HIDDEN signals found") == "1"
+    assert any("MYOCARDIAL INFARCTION" in e.value for e in at.error)   # the red headline box names the hidden signal
+
+    assert at.text_input(key="tl_excl").value == "auto"
+    at.button(key="tl_btn").click().run()                        # Build timeline with the rule-based exclusion
+    assert not at.exception, [e.value for e in at.exception]
+    metrics = {m.label: m.value for m in at.metric}
+    assert metrics.get("First flagged — standard") == "2008"
+    assert metrics.get("First flagged — masking-corrected") == "2006"

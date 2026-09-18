@@ -59,32 +59,53 @@ def scan(
     chi2_threshold: float = typer.Option(4.0, help="Chi-square threshold (Evans: 4.0)."),
     show_all: bool = typer.Option(False, "--all", help="Show every evaluated reaction, not just signals."),
     clusters: bool = typer.Option(True, help="Also show signals grouped by system organ class."),
+    label: bool = typer.Option(True, "--label/--no-label", help="Check each signal against the current FDA label: already labelled, or new?"),
     json_out: Optional[Path] = typer.Option(None, "--json", help="Write the full result as JSON to this path."),
 ):
-    """Disproportionality scan: every reaction reported with DRUG, ranked, signals flagged."""
+    """Disproportionality scan: every reaction reported with DRUG, ranked, signals flagged, checked against the FDA label."""
+    from pharos.faers.client import OpenFDAError
     from pharos.signals.cluster import cluster_signals
     from pharos.signals.detector import scan_drug
+    from pharos.signals.label import annotate_with_label, label_summary, load_label
     from pharos.signals.stats import SignalCriteria
 
     names = [drug, *alias]
     criteria = SignalCriteria(min_cases=min_cases, prr_threshold=prr_threshold, chi2_threshold=chi2_threshold)
+    client = _client()
     with console.status(f"Querying openFDA for {', '.join(n.upper() for n in names)} …"):
-        result = scan_drug(names, _client(), top_n=top, criteria=criteria)
+        result = scan_drug(names, client, top_n=top, criteria=criteria)
+
+    label_line = ""
+    if label:
+        try:
+            with console.status("Fetching the current FDA label …"):
+                lab = load_label(names, client)
+            result.table = annotate_with_label(result.table, lab)
+            ls = label_summary(result.table)
+            if lab.found:
+                label_line = (f"\nFDA label ({', '.join(lab.products[:2])}): [green]{ls['labelled']} already labelled[/green]"
+                              f" ({ls['boxed_warning']} in the boxed warning) · [bold yellow]{ls['unlabelled']} NOT on the label[/bold yellow] → review these first")
+            else:
+                label_line = "\nFDA label: [dim]no current label in openFDA (withdrawn / discontinued product)[/dim]"
+        except OpenFDAError as exc:
+            label_line = f"\n[dim]FDA label check skipped: {str(exc).splitlines()[0]}[/dim]"
 
     console.print(
         Panel.fit(
             f"[bold]{result.drug}[/bold]  ·  {result.drug_reports:,} reports mention it  ·  "
             f"{result.total_reports:,} reports in FAERS  ·  source: openFDA ({result.source})\n"
             f"Criteria: n ≥ {criteria.min_cases}, PRR ≥ {criteria.prr_threshold}, χ² ≥ {criteria.chi2_threshold}   "
-            f"→ [bold red]{len(result.signals())} clinical signals[/bold red] among {len(result.table)} reactions evaluated",
+            f"→ [bold red]{len(result.signals())} clinical signals[/bold red] among {len(result.table)} reactions evaluated"
+            + label_line,
             title="Pharos · signal scan",
         )
     )
 
+    has_label = "label_status" in result.table.columns
     df = result.table if show_all else result.signals()
     t = Table(box=box.SIMPLE_HEAVY, show_lines=False)
-    for col in ("Reaction", "n", "PRR", "95% CI", "ROR", "χ²", "Tier", "Flags"):
-        t.add_column(col, justify="right" if col not in ("Reaction", "Tier", "Flags", "95% CI") else "left")
+    for col in ("Reaction", "n", "PRR", "95% CI", "ROR", "χ²", "Tier") + (("On FDA label?",) if has_label else ()) + ("Flags",):
+        t.add_column(col, justify="right" if col in ("n", "PRR", "ROR", "χ²") else "left")
     for _, r in df.iterrows():
         flags = []
         if r["is_administrative"]:
@@ -92,17 +113,13 @@ def scan(
         if r["haldane_corrected"]:
             flags.append("0.5-corr")
         style = "bold red" if (r["is_signal"] and not r["is_administrative"]) else ("dim" if not r["is_signal"] else "")
-        t.add_row(
-            r["reaction"],
-            str(int(r["n_cases"])),
-            _fmt(r["prr"]),
-            f"{_fmt(r['prr_ci_low'])}–{_fmt(r['prr_ci_high'])}",
-            _fmt(r["ror"]),
-            _fmt(r["chi2"], 1),
-            r["tier"],
-            ",".join(flags),
-            style=style,
-        )
+        cells = [r["reaction"], str(int(r["n_cases"])), _fmt(r["prr"]), f"{_fmt(r['prr_ci_low'])}–{_fmt(r['prr_ci_high'])}",
+                 _fmt(r["ror"]), _fmt(r["chi2"], 1), r["tier"]]
+        if has_label:
+            sec = r["label_section"]
+            cells.append("[bold yellow]NOT ON LABEL[/bold yellow]" if r["is_labelled"] is False else (f"[green]{sec}[/green]" if sec else "[dim]—[/dim]"))
+        cells.append(",".join(flags))
+        t.add_row(*cells, style=style)
     console.print(t)
 
     if clusters:
@@ -167,6 +184,56 @@ def prr(
         console.print(f"[green]Wrote {json_out}[/green]")
 
 
+# ---------------------------------------------------------------- hidden
+
+
+@app.command()
+def hidden(
+    drug: str = typer.Argument(...),
+    alias: list[str] = typer.Option([], "--alias", "-a"),
+    as_of: Optional[int] = typer.Option(None, "--as-of", help="Use only reports FDA had received by 31 Dec of this year (default: today)."),
+    start: int = typer.Option(2004, "--from"),
+    top: int = typer.Option(60, help="Reactions to evaluate."),
+    checks: int = typer.Option(30, help="How many of them to check for masking (1–3 requests each)."),
+    min_share: float = typer.Option(25.0, help="A product holding at least this %% of a reaction's reports is treated as a masker."),
+    min_cases: int = typer.Option(3),
+    prr_threshold: float = typer.Option(2.0),
+    chi2_threshold: float = typer.Option(4.0),
+    json_out: Optional[Path] = typer.Option(None, "--json"),
+):
+    """Which signals is the standard screen HIDING? Automatic masking detection + correction across a whole drug."""
+    from pharos.signals.masking import find_hidden_signals
+    from pharos.signals.stats import SignalCriteria
+
+    criteria = SignalCriteria(min_cases=min_cases, prr_threshold=prr_threshold, chi2_threshold=chi2_threshold)
+    with console.status("Running the standard screen, then checking each reaction's background for a dominant product …"):
+        res = find_hidden_signals([drug, *alias], _client(), as_of_year=as_of, start_year=start, top_n=top,
+                                  max_checks=checks, min_share_pct=min_share, criteria=criteria)
+
+    console.print(Panel.fit(res.headline(), title="Pharos · hidden signals", border_style="red" if len(res.unmasked) else "green"))
+    shown = res.table[res.table["status"].isin(["unmasked", "strengthened", "masked, sub-threshold"])]
+    if shown.empty:
+        console.print("[green]No reaction had a single product holding a large share of its reports — the standard screen is not being distorted here.[/green]")
+    else:
+        t = Table(box=box.SIMPLE_HEAVY)
+        for col, just in (("Reaction", "left"), ("n", "right"), ("PRR\nstandard", "right"), ("Signal?", "left"), ("Masking product\n(share of reaction's reports)", "left"),
+                          ("PRR\ncorrected", "right"), ("χ²\ncorrected", "right"), ("Result", "left")):
+            t.add_column(col, justify=just, no_wrap=(col != "Reaction"))
+        style_by = {"unmasked": "bold red", "strengthened": "yellow", "masked, sub-threshold": "dim"}
+        for _, r in shown.iterrows():
+            t.add_row(r["reaction"], f"{int(r['n_cases']):,}", _fmt(r["prr_std"]), "yes" if r["signal_std"] else "no",
+                      f"{r['maskers']} ({r['excluded_share_pct']:.0f}%)", _fmt(r["prr_adj"]) if pd_notna(r["prr_adj"]) else "—",
+                      f"{r['chi2_adj']:,.0f}" if pd_notna(r["chi2_adj"]) else "—",
+                      {"unmasked": "● HIDDEN SIGNAL", "strengthened": "▲ understated", "masked, sub-threshold": "masked, still < threshold"}[r["status"]],
+                      style=style_by[r["status"]])
+        console.print(t)
+    console.print(f"[dim]Rule: exclude any single product with ≥ {min_share:.0f}% of a reaction's reports in the window, plus its known aliases. "
+                  f"Window = FDA receive dates {res.start_year}–{res.end_year}. {res.reactions_checked} reactions checked. No analyst choice involved.[/dim]")
+    if json_out:
+        json_out.write_text(json.dumps(res.as_dict(), indent=2, default=str), encoding="utf-8")
+        console.print(f"[green]Wrote {json_out}[/green]")
+
+
 # ---------------------------------------------------------------- timeline
 
 
@@ -175,7 +242,7 @@ def timeline(
     drug: str = typer.Argument(...),
     reaction: str = typer.Argument(..., help='MedDRA preferred term, e.g. "MYOCARDIAL INFARCTION".'),
     alias: list[str] = typer.Option([], "--alias", "-a"),
-    exclude: list[str] = typer.Option([], "--exclude", "-x", help="Drug(s) to remove from the comparator background (masking correction). Repeatable."),
+    exclude: list[str] = typer.Option([], "--exclude", "-x", help="Product(s) to remove from the comparator background (masking correction). Repeatable. Use `-x auto` to let the ≥25%% share rule choose, prospectively (no look-ahead)."),
     start: int = typer.Option(2004, "--from", help="First year (openFDA data begins 2004)."),
     end: Optional[int] = typer.Option(None, "--to", help="Last year (default: current year)."),
     min_cases: int = typer.Option(3),
@@ -236,7 +303,11 @@ def timeline(
         cells += [" ".join(flags), "★" * len(acts_by_year.get(y, []))]
         t.add_row(*cells, style=style)
     console.print(t)
-    if adj:
+    if adj and res.auto_excluded:
+        steps = "; ".join(f"{', '.join(s['names'])} from {s['from_year']}" for s in res.exclusion_schedule)
+        console.print(f"[dim]◆ excl = cumulative PRR with maskers removed by rule, prospectively — {steps}. No look-ahead: a product is only "
+                      f"excluded from the first year it reached 25% of the reaction's reports.[/dim]")
+    elif adj:
         console.print(f"[dim]◆ excl = cumulative PRR with {', '.join(res.exclude)} removed from the comparator background.[/dim]")
     if res.actions:
         console.print("[bold]★ Regulatory / scientific milestones[/bold]")
@@ -373,10 +444,15 @@ def build_cache(
         raise typer.Exit(1)
     drugs = parse_demo_drugs(drugs_file)
     console.print(f"Warming cache in [bold]{client.cache_dir}[/bold] for {len(drugs)} drugs …")
+    from pharos.signals.detector import compute_pair
+
     for d in drugs:
         names = [d["name"], *d["aliases"]]
         with console.status(f"{d['name']} …"):
             res = scan_drug(names, client, top_n=top)
+            # The exact 2×2 drill-down (CLI `prr`, dashboard "Drill into one pair") for the signals people will click.
+            for rx in list(res.signals()["reaction"].head(8)):
+                compute_pair(names, rx, client)
         console.print(f"  ✓ {res.drug:<16} {res.drug_reports:>8,} reports  {len(res.signals()):>3} clinical signals   {d['note']}")
 
     # Signal-emergence timelines for the headline pairs (4 requests per year each).
@@ -387,11 +463,28 @@ def build_cache(
     pairs = (yaml.safe_load(ACTIONS_PATH.read_text(encoding="utf-8")) or {}).get("headline_pairs", [])
     for p in pairs:
         names = [p["drug"], *p.get("aliases", [])]
-        with console.status(f"timeline {p['drug']} × {p['reaction']} …"):
-            tl = signal_timeline(names, p["reaction"], client, end_year=p.get("end_year"), exclude=p.get("exclude") or None)
+        # Warm every variant the demo can ask for: standard, the named exclusion, and the automatic rule.
+        variants = [None, ["auto"]] + ([p["exclude"]] if p.get("exclude") else [])
+        for ex in variants:
+            with console.status(f"timeline {p['drug']} × {p['reaction']} ({'standard' if not ex else ', '.join(ex)}) …"):
+                tl = signal_timeline(names, p["reaction"], client, end_year=p.get("end_year"), exclude=ex)
+        compute_pair(names, p["reaction"], client)  # headline pairs must drill down offline too
         flag = tl.first_flag_year_cumulative or "never"
-        extra = f"  masking-corrected {tl.first_flag_year_adjusted or 'never'}" if tl.exclude else ""
-        console.print(f"  ✓ timeline {tl.drug:<14} × {tl.reaction:<26} first flagged {flag}{extra}")
+        console.print(f"  ✓ timeline {tl.drug:<14} × {tl.reaction:<26} standard {flag} · auto-corrected {tl.first_flag_year_adjusted or '—'}")
+
+    # Hidden-signal screens and FDA labels for the demo.
+    from pharos.signals.label import load_label
+    from pharos.signals.masking import find_hidden_signals
+
+    for h in (yaml.safe_load(ACTIONS_PATH.read_text(encoding="utf-8")) or {}).get("hidden_signal_demos", []):
+        names = [h["drug"], *h.get("aliases", [])]
+        with console.status(f"hidden signals {h['drug']} as of {h.get('as_of')} …"):
+            hs = find_hidden_signals(names, client, as_of_year=h.get("as_of"))
+        console.print(f"  ✓ hidden   {hs.drug:<14} as of {hs.end_year}: {len(hs.unmasked)} unmasked, {len(hs.strengthened)} understated")
+    for d in drugs:
+        with console.status(f"label {d['name']} …"):
+            lab = load_label([d["name"], *d["aliases"]], client)
+        console.print(f"  ✓ label    {d['name']:<14} {'found: ' + ', '.join(lab.products[:2]) if lab.found else 'no current label'}")
     console.print("[green]Cache ready. Set PHAROS_OFFLINE=1 to run without network.[/green]")
 
 

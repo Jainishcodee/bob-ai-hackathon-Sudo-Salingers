@@ -39,15 +39,16 @@ submission:
     ranks and clusters signals by organ system, and retrospectively flags every withdrawn drug in our
     demo set; Mode 2 audits a dossier outline against a machine-readable ICH M4 CTD checklist (69
     sections, weighted by regulatory criticality) and produces a ranked gap report. Pharos is the
-    evidence layer; IBM Bob, connected through the Pharos MCP server (6 tools, 2 prompt templates), is
+    evidence layer; IBM Bob, connected through the Pharos MCP server (9 tools, 2 prompt templates), is
     the reasoning layer that turns the numbers into a signal-assessment memo or a remediation plan.
 
   key_features:                        # REQUIRED — List 3 to 5 specific features you implemented
-    - "Live disproportionality analysis over 20.7M real FDA FAERS reports via openFDA: PRR, ROR (95% CI), Yates chi-square, Evans 2001 signal criteria, Haldane correction — 36 unit tests against hand-computed values"
-    - "Signal emergence timeline with masking detection & correction: rebuilds the 2×2 table per year (FDA receive date) and detects which drug dominates a reaction's reports. Real result — Vioxx litigation = 68–72% of all MI reports in 2005–06 masked Avandia's MI signal; standard PRR flags it in 2008 (after FDA acted), Vioxx-excluded PRR flags it in 2006, a year BEFORE the Nissen meta-analysis"
+    - "Live disproportionality analysis over 20.7M real FDA FAERS reports via openFDA: PRR, ROR (95% CI), Yates chi-square, Evans 2001 signal criteria, Haldane correction; exact MedDRA preferred-term matching — 80 offline tests against hand-computed values"
+    - "Signal emergence timeline with masking detection & correction: rebuilds the 2×2 table per year (FDA receive date) and detects which drug dominates a reaction's reports. Real result — Vioxx litigation = 69–73% of all MI reports in 2005–06 masked Avandia's MI signal; standard PRR flags it in 2008 (after FDA acted), masking-corrected PRR flags it in 2006, a year BEFORE the Nissen meta-analysis. Masker chosen by rule, applied prospectively with no look-ahead"
+    - "Hidden-signal finder + FDA label check: for any drug/as-of year, automatically finds signals the standard screen hides behind another product's reporting wave (Avandia 2006: MI 0.77→2.18; Meridia 2006: stroke 1.67→4.40 and MI 1.06→2.95, four years before its withdrawal), and tags every signal as already on the FDA label or NOT (metformin: 12 of 15 labelled, lactic acidosis found in the boxed warning)"
     - "Retrospective validation on real withdrawals: Vioxx (rofecoxib) → myocardial infarction n=17,981, PRR 52 [51.5–52.8]; cardiovascular organ-system cluster of 8 signals — plus Avandia, Baycol, Bextra, Meridia, Darvon in the demo set"
     - "ICH M4 CTD submission-readiness checker: 69-section machine-readable checklist with required/optional flags and criticality weights; per-module weighted scores; gaps ranked critical/major/minor with 'why it matters'; detects collapsed parent sections and unrecognised entries"
-    - "IBM Bob MCP server (7 tools: scan_signals, compute_prr, cluster_signals_by_organ_system, search_reports, signal_emergence_timeline, check_ctd_dossier, get_ctd_spec + 2 prompt templates) — Bob writes the narrative, Pharos supplies the evidence"
+    - "IBM Bob MCP server (9 tools: scan_signals, compute_prr, cluster_signals_by_organ_system, search_reports, find_hidden_signals, check_fda_label, signal_emergence_timeline, check_ctd_dossier, get_ctd_spec + 2 prompt templates) — Bob writes the narrative, Pharos supplies the evidence"
     - "Streamlit dashboard + Typer CLI, administrative-term filtering (DRUG INEFFECTIVE etc.), curated MedDRA SOC clustering, on-disk openFDA cache with PHAROS_OFFLINE mode so the demo survives no network"
 
   tech_stack:
@@ -59,21 +60,21 @@ submission:
 
   what_we_are_most_proud_of: >         # Optional but recommended — guides judges to your best work
     The Avandia timeline (src/pharos/signals/timeline.py). Run `python -m pharos timeline rosiglitazone
-    "myocardial infarction" --alias avandia -x rofecoxib -x vioxx --to 2013`: Pharos rebuilds the 2×2 table
+    "myocardial infarction" --alias avandia -x auto --to 2013`: Pharos rebuilds the 2×2 table
     for every year from real FDA data, shows the standard PRR screen flagging Avandia's MI signal only in 2008
-    — after the FDA had acted — then shows WHY: Vioxx litigation reports were 68–72% of every MI report in
+    — after the FDA had acted — then shows WHY: Vioxx litigation reports were 69–73% of every MI report in
     FAERS in 2005–06 (masking). Excluding them, the signal is present in 2006, a year before the Nissen
     meta-analysis. We did not expect this; the data corrected our first assumption, and the tool now makes
     masking visible and correctable for any drug. All statistics are the ones regulators use (Evans 2001),
-    unit-tested against hand-computed values (50 tests), and exposed to IBM Bob over MCP so Bob can verify
+    unit-tested against hand-computed values (80 tests), and exposed to IBM Bob over MCP so Bob can verify
     each signal with an exact query, pull real cases, establish when it emerged, and write the assessment.
 
   known_limitations: >                 # Optional but recommended — be honest about gaps
     (1) The Vioxx scan is a retrospective validation, not pre-withdrawal detection: openFDA data starts
     in 2004 and Vioxx was withdrawn in September 2004; its FAERS counts are inflated by litigation-driven
     reporting. The Avandia timeline IS a prospective statement (it uses only reports FDA had by each year-end),
-    but the masking drug was chosen by an analyst reading Pharos's masking report, not by an automated rule,
-    and the standard screen alone flagged Avandia only in 2008 — we claim the correction, not that naive PRR
+    and the masker is chosen by a fixed rule applied with no look-ahead — but the 25% share threshold is our
+    convention, not a published standard; and the standard screen alone flagged Avandia only in 2008 — we claim the correction, not that naive PRR
     beats regulators. (2) Disproportionality shows reporting association, not causation; Pharos is a triage
     tool and says so.
     (3) MedDRA is licensed, so organ-system clustering uses a curated ~300-term map plus keyword heuristics

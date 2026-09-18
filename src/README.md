@@ -8,16 +8,18 @@ src/
 │   ├── signals/stats.py        2×2 table → PRR, ROR (+95% CI), chi-square (Yates); Evans 2001 criteria
 │   ├── signals/detector.py     scan one drug across all its reported reactions; administrative-term filter
 │   ├── signals/cluster.py      group signals by MedDRA System Organ Class (curated map + heuristics)
-│   ├── signals/timeline.py     year-by-year + cumulative PRR by FDA receive date; masking detection & correction; lead time vs regulatory actions
+│   ├── signals/timeline.py     year-by-year + cumulative PRR by FDA receive date; masking detection & correction (manual or rule-based, no look-ahead)
+│   ├── signals/masking.py      hidden-signal finder: which signals is the standard screen missing? brand/generic alias groups
+│   ├── signals/label.py        FDA label check — each signal: boxed warning / warnings / adverse reactions / NOT on the label
 │   ├── ctd/data/ich_m4_ctd.yaml  ICH M4 CTD Modules 1–5 as a machine-readable checklist (69 leaf sections)
 │   ├── ctd/checker.py          outline → matched sections → per-module weighted score → ranked gaps
 │   ├── ctd/report.py           Markdown gap report
-│   └── cli.py                  `python -m pharos` — scan · prr · timeline · ctd-check · ctd-template · build-cache
-├── mcp_server/server.py        MCP server exposing 7 tools + 2 prompt templates to IBM Bob
+│   └── cli.py                  `python -m pharos` — scan · prr · hidden · timeline · ctd-check · ctd-template · build-cache
+├── mcp_server/server.py        MCP server exposing 9 tools + 2 prompt templates to IBM Bob
 ├── app/streamlit_app.py        two-tab dashboard (Signal Detection incl. emergence timeline · Submission Readiness)
 ├── data/samples/               demo_drugs.txt · regulatory_actions.yaml · dossier_complete.yaml · dossier_incomplete.yaml
 ├── scripts/build_cache.py      wrapper to warm the offline cache (scans + headline timelines)
-├── tests/                      pytest — 50 tests, all offline (fake clients), hand-computed reference values
+├── tests/                      pytest — 80 tests, all offline (fake clients), hand-computed reference values
 ├── requirements.txt · pyproject.toml · .env.example
 ```
 
@@ -27,7 +29,8 @@ Quick start (from this directory):
 pip install -r requirements.txt
 pip install -e . --no-build-isolation
 python -m pharos scan rofecoxib --alias vioxx
-python -m pharos timeline rosiglitazone "myocardial infarction" --alias avandia -x rofecoxib -x vioxx --to 2013
+python -m pharos hidden rosiglitazone --alias avandia --as-of 2006
+python -m pharos timeline rosiglitazone "myocardial infarction" --alias avandia -x auto --to 2013
 python -m pharos ctd-check data/samples/dossier_incomplete.yaml
 streamlit run app/streamlit_app.py
 python -m mcp_server.server        # for IBM Bob (stdio)

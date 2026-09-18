@@ -80,3 +80,15 @@ headline_pairs:
     aliases: [VIOXX]
     reaction: MYOCARDIAL INFARCTION
     end_year: 2010
+
+# Drug / as-of-year pairs the hidden-signal demo (and `build-cache`) warms.
+hidden_signal_demos:
+  - drug: ROSIGLITAZONE
+    aliases: [AVANDIA]
+    as_of: 2006      # what was hidden at the end of 2006, a year before the Nissen meta-analysis
+  - drug: ROSIGLITAZONE
+    aliases: [AVANDIA]
+    as_of: 2005
+  - drug: SIBUTRAMINE
+    aliases: [MERIDIA, REDUCTIL]
+    as_of: 2006

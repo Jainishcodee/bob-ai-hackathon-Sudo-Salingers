@@ -25,6 +25,7 @@ from urllib.parse import quote
 import httpx
 
 OPENFDA_EVENT_URL = "https://api.fda.gov/drug/event.json"
+OPENFDA_LABEL_URL = "https://api.fda.gov/drug/label.json"
 DEFAULT_CACHE_DIR = Path(__file__).resolve().parent / "cache"
 
 # Fields we match a drug name against. ``medicinalproduct`` is the verbatim name on the
@@ -73,19 +74,21 @@ class OpenFDAClient:
     # ------------------------------------------------------------------ plumbing
 
     @staticmethod
-    def _build_url(params: dict[str, str]) -> str:
+    def _build_url(params: dict[str, str], base: str = OPENFDA_EVENT_URL) -> str:
         # openFDA is particular about its query syntax: ``field:"term"`` with ``+`` as the
         # OR separator between terms. Percent-encode everything except the characters
         # that carry that syntax.
         safe_chars = ':+"()'
         parts = [f"{k}={quote(str(v), safe=safe_chars)}" for k, v in params.items()]
-        return OPENFDA_EVENT_URL + "?" + "&".join(parts)
+        return base + "?" + "&".join(parts)
 
     def _cache_path(self, url: str) -> Path:
         return self.cache_dir / (hashlib.sha1(url.encode()).hexdigest() + ".json")
 
-    def _get(self, params: dict[str, str]) -> dict:
-        url = self._build_url(params)
+    def _get(self, params: dict[str, str], base: str = OPENFDA_EVENT_URL, transform=None) -> dict:
+        """GET with disk cache. ``transform`` (optional) shrinks the payload *before* it is cached —
+        used for drug labels, which are ~100 KB each and would bloat the committed cache."""
+        url = self._build_url(params, base)
         cache_file = self._cache_path(url)
         if cache_file.exists():
             self.last_source = "cache"
@@ -122,7 +125,7 @@ class OpenFDAClient:
                 request_url = url
                 if params.get("count") and int(params.get("limit", "0") or 0) > 500:
                     params = {**params, "limit": "500"}
-                    url = self._build_url(params)
+                    url = self._build_url(params, base)
                     cache_file = self._cache_path(url)
                     request_url = url
                 continue
@@ -135,6 +138,8 @@ class OpenFDAClient:
             data = resp.json()
             break
 
+        if transform is not None:
+            data = transform(data)
         cache_file.write_text(json.dumps(data), encoding="utf-8")
         self.last_source = "live"
         return data
@@ -151,7 +156,10 @@ class OpenFDAClient:
 
     @staticmethod
     def reaction_expression(reaction: str) -> str:
-        return f'{REACTION_FIELD}:"{reaction.strip().upper()}"'
+        # ``.exact`` matches the MedDRA preferred term exactly. The plain field is a phrase match —
+        # "OEDEMA" would also hit OEDEMA PERIPHERAL, PULMONARY OEDEMA … (6x over-count) and would
+        # disagree with the ``count`` endpoint, which always tallies exact terms.
+        return f'{REACTION_FIELD}.exact:"{reaction.strip().upper()}"'
 
     @staticmethod
     def year_expression(year: int) -> str:
@@ -201,6 +209,61 @@ class OpenFDAClient:
         limit = min(limit, self.max_count_limit)
         data = self._get({"count": REACTION_FIELD + ".exact", "limit": str(limit)})
         return {r["term"]: int(r["count"]) for r in data.get("results", [])}
+
+    def reaction_counts(self, expr: str | None = None, limit: int = 500) -> list[dict]:
+        """Reaction term counts for ANY search expression (None = all of FAERS): [{term, count}, ...]."""
+        params = {"count": REACTION_FIELD + ".exact", "limit": str(min(limit, self.max_count_limit))}
+        if expr:
+            params = {"search": expr, **params}
+        data = self._get(params)
+        return [{"term": r["term"], "count": int(r["count"])} for r in data.get("results", [])]
+
+    @staticmethod
+    def window_expression(start_year: int, end_year: int) -> str:
+        """Reports FDA received between 1 Jan ``start_year`` and 31 Dec ``end_year`` inclusive."""
+        return f"receivedate:[{start_year}0101+TO+{end_year}1231]"
+
+    # ------------------------------------------------------------------ drug labels (SPL)
+
+    LABEL_SECTIONS = (
+        "boxed_warning", "warnings_and_cautions", "warnings", "contraindications", "precautions",
+        "general_precautions", "adverse_reactions", "drug_interactions", "use_in_specific_populations", "overdosage",
+    )
+
+    @classmethod
+    def _trim_labels(cls, data: dict) -> dict:
+        out = []
+        for r in data.get("results", []):
+            fda = r.get("openfda", {}) or {}
+            out.append(
+                {
+                    "brand_name": fda.get("brand_name", []),
+                    "generic_name": fda.get("generic_name", []),
+                    "substance_name": fda.get("substance_name", []),
+                    "manufacturer_name": fda.get("manufacturer_name", []),
+                    "product_type": fda.get("product_type", []),
+                    "set_id": r.get("set_id"),
+                    "effective_time": r.get("effective_time"),
+                    "sections": {k: " ".join(r[k]) for k in cls.LABEL_SECTIONS if r.get(k)},
+                }
+            )
+        return {"meta": data.get("meta", {}), "results": out}
+
+    def label_documents(self, names: str | Iterable[str], limit: int = 15) -> list[dict]:
+        """Current FDA-approved labels (SPL) for a drug, trimmed to the safety sections.
+
+        Tries the harmonised generic, substance and brand name fields in turn. Returns [] when the
+        product has no current label in openFDA — typical for withdrawn drugs, and informative in itself.
+        """
+        if isinstance(names, str):
+            names = [names]
+        names = [n.strip().upper() for n in names if n and n.strip()]
+        for fld in ("openfda.generic_name", "openfda.substance_name", "openfda.brand_name"):
+            expr = "+".join(f'{fld}:"{n}"' for n in names)
+            data = self._get({"search": expr, "limit": str(limit)}, base=OPENFDA_LABEL_URL, transform=self._trim_labels)
+            if data.get("results"):
+                return data["results"]
+        return []
 
     def drug_contributors(self, expr: str, limit: int = 8) -> list[dict]:
         """Which drugs appear most in the reports matching ``expr``? [{term, count}, ...].

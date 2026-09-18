@@ -26,6 +26,8 @@ from pharos.ctd.report import gap_report_markdown  # noqa: E402
 from pharos.faers.client import OpenFDAClient, OpenFDAError  # noqa: E402
 from pharos.signals.cluster import cluster_signals  # noqa: E402
 from pharos.signals.detector import compute_pair, scan_drug  # noqa: E402
+from pharos.signals.label import annotate_with_label, label_summary, load_label  # noqa: E402
+from pharos.signals.masking import find_hidden_signals  # noqa: E402
 from pharos.signals.stats import SignalCriteria  # noqa: E402
 from pharos.signals.timeline import actions_for, signal_timeline  # noqa: E402
 
@@ -49,11 +51,26 @@ def get_client() -> OpenFDAClient:
 @st.cache_data(show_spinner=False, ttl=3600)
 def cached_scan(names: tuple[str, ...], top_n: int, min_cases: int, prr_t: float, chi2_t: float) -> dict:
     res = scan_drug(list(names), get_client(), top_n=top_n, criteria=SignalCriteria(min_cases, prr_t, chi2_t))
+    label: dict = {}
+    try:  # label check is a bonus — never let it break the scan (e.g. offline with no cached label)
+        lab = load_label(list(names), get_client())
+        res.table = annotate_with_label(res.table, lab)
+        label = lab.as_dict() | label_summary(res.table)
+    except OpenFDAError as exc:
+        label = {"label_found": False, "note": str(exc).splitlines()[0], "error": True}
     return {
         "meta": res.as_dict(top=0) | {"rows": None},
         "table": res.table.to_json(orient="split"),
         "source": res.source,
+        "label": label,
     }
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def cached_hidden(names: tuple[str, ...], as_of: int, min_share: float, min_cases: int, prr_t: float, chi2_t: float) -> dict:
+    res = find_hidden_signals(list(names), get_client(), as_of_year=as_of, min_share_pct=min_share,
+                              criteria=SignalCriteria(min_cases, prr_t, chi2_t))
+    return res.as_dict()
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
@@ -148,6 +165,19 @@ with tab1:
                       f"n = {int(clinical['n_cases'].max()):,}")
         st.caption(f"Source: openFDA ({out['source']}) · generated {meta['generated_at']} · {meta['total_reports_in_faers']:,} reports in FAERS")
 
+        lbl = out.get("label") or {}
+        if lbl.get("label_found"):
+            l1, l2, l3, l4 = st.columns([1, 1, 1, 2])
+            l1.metric("Already on the FDA label", lbl["labelled"], help="Expected — the label already warns about these")
+            l2.metric("…of which boxed warning", lbl["boxed_warning"])
+            l3.metric("NOT on the label", lbl["unlabelled"], "review these first" if lbl["unlabelled"] else None, delta_color="inverse")
+            l4.caption(f"**Label checked:** {', '.join(lbl.get('products', [])[:3])} · {lbl.get('labels_used')} current label(s), "
+                       f"latest {lbl.get('most_recent_effective_date')}. Text match on the safety sections (spelling + synonyms) — "
+                       f"“not on the label” is a prompt to read it, not a regulatory finding. {lbl.get('note', '')}")
+        elif lbl and not lbl.get("error"):
+            st.caption("🏷️ **FDA label:** no current label in openFDA for this product — typical for withdrawn or discontinued drugs, "
+                       "so signals cannot be split into labelled / new.")
+
         if chosen and chosen["name"].upper() == names[0].upper():
             st.info(f"**Known history:** {chosen['note']}. Does the statistics find it?", icon="📖")
 
@@ -191,16 +221,29 @@ with tab1:
                     st.caption("Heuristic MedDRA SOC mapping — confirm against licensed MedDRA.")
 
         st.markdown("#### All evaluated reactions")
-        show_all = st.toggle("Include non-signals and administrative terms", value=False)
+        has_label_col = "label_status" in df.columns and bool(lbl.get("label_found"))
+        tg1, tg2 = st.columns(2)
+        show_all = tg1.toggle("Include non-signals and administrative terms", value=False)
+        only_new = tg2.toggle("Only signals NOT on the FDA label", value=False, disabled=not has_label_col)
         view = df if show_all else clinical
-        pretty = view.assign(
-            **{
-                "PRR [95% CI]": view.apply(lambda r: f"{r.prr:.2f} [{r.prr_ci_low:.2f}–{r.prr_ci_high:.2f}]", axis=1),
-                "ROR": view["ror"].round(2),
-                "χ²": view["chi2"].round(1),
-            }
-        )[["reaction", "n_cases", "PRR [95% CI]", "ROR", "χ²", "tier", "is_signal", "is_administrative"]]
-        st.dataframe(pretty, width="stretch", hide_index=True, height=min(600, 38 * len(pretty) + 40))
+        if only_new and has_label_col:
+            view = view[view["is_labelled"] == False]  # noqa: E712 — column holds True/False/None
+        if view.empty:
+            st.info("Nothing to show with these filters.")
+        else:
+            pretty = view.assign(
+                **{
+                    "PRR [95% CI]": view.apply(lambda r: f"{r.prr:.2f} [{r.prr_ci_low:.2f}–{r.prr_ci_high:.2f}]", axis=1),
+                    "ROR": view["ror"].round(2),
+                    "χ²": view["chi2"].round(1),
+                }
+            )
+            cols = ["reaction", "n_cases", "PRR [95% CI]", "ROR", "χ²", "tier"]
+            if has_label_col:
+                pretty = pretty.rename(columns={"label_status": "on FDA label?", "label_snippet": "where on the label"})
+                cols += ["on FDA label?", "where on the label"]
+            cols += ["is_signal", "is_administrative"]
+            st.dataframe(pretty[cols], width="stretch", hide_index=True, height=min(600, 38 * len(pretty) + 40))
 
         d1, d2 = st.columns(2)
         d1.download_button("⬇ CSV", df.to_csv(index=False).encode(), file_name=f"pharos_{names[0]}_scan.csv", mime="text/csv")
@@ -225,6 +268,60 @@ with tab1:
                 k3.metric("χ² (Yates)", f"{pair['chi2']:,.1f}")
                 k4.metric("Verdict", "SIGNAL" if pair["is_signal"] else "no signal", pair["tier"], delta_color="inverse" if pair["is_signal"] else "off")
 
+        with st.expander("🎭 Hidden signals — what is the standard screen MISSING for this drug?", expanded=True):
+            st.markdown(
+                "PRR compares a drug with *all other drugs*. When one product's reporting wave (litigation, media, a recall) makes up a big "
+                "share of a reaction's reports, the background inflates and that reaction is **hidden for every other drug**. Pharos checks each "
+                "reaction for a dominant product, removes it by a **fixed rule** (no analyst choice), and recomputes. Masking is time-local, so pick an *as-of* year."
+            )
+            hc1, hc2, hc3 = st.columns([1, 1, 2])
+            is_avandia_h = names[0].upper() == "ROSIGLITAZONE"
+            h_asof = hc1.number_input("As of end of year", 2004, 2030, 2006 if is_avandia_h else 2026, key="h_asof",
+                                      help="Only reports FDA had received by 31 Dec of this year are used — what was knowable then.")
+            h_share = hc2.number_input("Masker threshold (% of a reaction's reports)", 10.0, 90.0, 25.0, 5.0, key="h_share")
+            if hc3.button("🎭 Find hidden signals", key="h_btn", help="≈ 30–90 openFDA requests the first time; cached afterwards"):
+                try:
+                    with st.spinner("Standard screen → who dominates each reaction's reports? → exclude → recompute …"):
+                        hs = cached_hidden(names, int(h_asof), float(h_share), int(min_cases), float(prr_t), float(chi2_t))
+                except OpenFDAError as exc:
+                    st.error(f"openFDA error: {exc}")
+                    hs = None
+                if hs:
+                    hdf = pd.DataFrame(hs["rows"])
+                    k1, k2, k3, k4 = st.columns(4)
+                    k1.metric("Signals — standard screen", hs["n_standard_clinical_signals"])
+                    k2.metric("HIDDEN signals found", hs["n_unmasked"], "missed by the standard screen" if hs["n_unmasked"] else None, delta_color="inverse")
+                    k3.metric("Understated ≥ 25%", hs["n_strengthened"])
+                    k4.metric("Reactions checked", hs["reactions_checked_for_masking"])
+                    (st.error if hs["n_unmasked"] else st.success)(hs["headline"], icon="🎭")
+
+                    hit = hdf[hdf["status"].isin(["unmasked", "strengthened", "masked, sub-threshold"])].copy() if not hdf.empty else hdf
+                    if not hit.empty:
+                        hit = hit.iloc[::-1]
+                        colour = {"unmasked": "#C0392B", "strengthened": "#E67E22", "masked, sub-threshold": "#95A5A6"}
+                        figh = go.Figure()
+                        for _, r in hit.iterrows():
+                            figh.add_trace(go.Scatter(x=[r["prr_std"], r["prr_adj"]], y=[r["reaction"].title()] * 2, mode="lines",
+                                                      line=dict(color=colour[r["status"]], width=3), showlegend=False, hoverinfo="skip"))
+                        figh.add_trace(go.Scatter(x=hit["prr_std"], y=hit["reaction"].str.title(), mode="markers", name="standard PRR",
+                                                  marker=dict(size=11, color="#7F8C8D", symbol="circle-open", line=dict(width=2)),
+                                                  hovertemplate="<b>%{y}</b><br>standard PRR %{x:.2f}<extra></extra>"))
+                        figh.add_trace(go.Scatter(x=hit["prr_adj"], y=hit["reaction"].str.title(), mode="markers", name="corrected PRR (masker excluded)",
+                                                  marker=dict(size=13, color=[colour[s] for s in hit["status"]]),
+                                                  customdata=hit[["maskers", "excluded_share_pct", "status"]].values,
+                                                  hovertemplate="<b>%{y}</b><br>corrected PRR %{x:.2f}<br>masker: %{customdata[0]} (%{customdata[1]:.0f}% of reports)<br>%{customdata[2]}<extra></extra>"))
+                        figh.add_vline(x=prr_t, line_dash="dash", line_color="#2C3E50", annotation_text=f"signal threshold PRR = {prr_t}")
+                        figh.update_layout(title=f"{hs['drug']} as of {hs['window']['end_year']} — standard vs masking-corrected PRR", xaxis_type="log",
+                                           xaxis_title="PRR (log) — a line crossing the dashed threshold is a signal the standard screen hides",
+                                           height=max(320, 46 * len(hit) + 140), legend=dict(orientation="h", y=-0.25), margin=dict(l=10, r=10, t=50, b=10))
+                        st.plotly_chart(figh, width="stretch")
+                        show = hit.iloc[::-1][["reaction", "n_cases", "prr_std", "signal_std", "maskers", "excluded_share_pct", "prr_adj", "chi2_adj", "status"]].rename(
+                            columns={"n_cases": "cases", "prr_std": "PRR standard", "signal_std": "signal (standard)", "maskers": "masking product",
+                                     "excluded_share_pct": "its share of the reaction's reports %", "prr_adj": "PRR corrected", "chi2_adj": "χ² corrected"})
+                        st.dataframe(show.round(2), width="stretch", hide_index=True)
+                    st.caption(f"Rule: {hs['masking_rule']}. Window = FDA receive dates {hs['window']['start_year']}–{hs['window']['end_year']}. "
+                               "'Hidden signal' = meets the same Evans criteria once the comparator is corrected — still a reporting association, not causation.")
+
         with st.expander("📈 When did this signal emerge? — year-by-year PRR vs. real regulatory action dates", expanded=True):
             st.markdown(
                 "Rebuilds the 2×2 table for each year using FDA **receive date**, so the *cumulative* line shows what a safety "
@@ -235,8 +332,10 @@ with tab1:
             default_rx = "MYOCARDIAL INFARCTION" if "MYOCARDIAL INFARCTION" in list(df["reaction"]) else (clinical.iloc[0]["reaction"] if not clinical.empty else df.iloc[0]["reaction"])
             tl_rx = t1.selectbox("Reaction", list(df["reaction"]), index=list(df["reaction"]).index(default_rx), key="tl_rx")
             is_avandia = names[0].upper() == "ROSIGLITAZONE"
-            tl_excl = t2.text_input("Exclude from background (masking correction)", value="ROFECOXIB, VIOXX" if is_avandia else "", key="tl_excl",
-                                    help="Another drug's reporting wave can dominate a reaction's reports and hide this drug's signal. Name it here to remove it from the comparator.")
+            tl_excl = t2.text_input("Exclude from background (masking correction)", value="auto", key="tl_excl",
+                                    help="'auto' = Pharos picks the masker by rule (any product ≥ 25% of the reaction's reports in a year), applied prospectively — "
+                                         "a product is only excluded from the first year it crossed the threshold, so nothing from the future leaks backward. "
+                                         "Or type product names (comma-separated). Leave empty for the standard screen only.")
             tl_from = t3.number_input("From", 2004, 2030, 2004, key="tl_from")
             tl_to = t4.number_input("To", 2004, 2030, 2013 if is_avandia else 2015, key="tl_to")
             if st.button("📈 Build timeline", key="tl_btn", help="4–7 openFDA requests per year; cached afterwards"):
@@ -279,8 +378,15 @@ with tab1:
                                               customdata=tdf[["cum_a", "cum_chi2", "cum_prr_ci_low", "cum_prr_ci_high"]].values,
                                               hovertemplate="<b>%{x}</b><br>cumulative PRR %{y:.2f} [%{customdata[2]:.2f}–%{customdata[3]:.2f}]<br>cumulative cases %{customdata[0]:,}<br>χ² %{customdata[1]:,.0f}<extra></extra>"))
                     if has_adj and "cum_prr_adj" in tdf:
+                        if tl.get("exclusion_selected_automatically"):
+                            steps = "; ".join(f"{', '.join(s['names']).title()} from {s['from_year']}" for s in tl.get("exclusion_schedule", []))
+                            st.caption(f"🤖 **Masker chosen by rule, no look-ahead:** {steps}. A product is excluded only from the first year it "
+                                       f"reached 25% of the reaction's reports.")
+                            adj_name = "Cumulative PRR — masking-corrected (rule-based, prospective)"
+                        else:
+                            adj_name = f"Cumulative PRR — excluding {', '.join(tl['excluded_from_background']).title()}"
                         fig3.add_trace(go.Scatter(x=tdf["year"], y=tdf["cum_prr_adj"], mode="lines+markers",
-                                                  name=f"Cumulative PRR — excluding {', '.join(tl['excluded_from_background']).title()}",
+                                                  name=adj_name,
                                                   line=dict(color="#27AE60", width=3),
                                                   customdata=tdf[["background_adj_pct", "excluded_share_of_event_pct"]].values,
                                                   hovertemplate="<b>%{x}</b><br>corrected PRR %{y:.2f}<br>corrected background %{customdata[0]:.2f}%<br>excluded drug's share of reaction reports %{customdata[1]:.0f}%<extra></extra>"))

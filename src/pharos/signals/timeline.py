@@ -6,16 +6,21 @@ For a drug–reaction pair, rebuild the 2x2 table year by year using FDA *receiv
 * the **yearly** PRR — that year's reports only (noisy, shows trend);
 * the **cumulative** PRR — all reports received up to and including that year, which is
   what a pharmacovigilance scientist running the screen in that year would actually see;
-* optionally a **masking-corrected** cumulative PRR, with one or more named drugs removed
+* optionally a **masking-corrected** cumulative PRR, with one or more products removed
   from the comparator background.
 
 Masking is a documented failure mode of disproportionality methods (Maignen et al. 2014,
 Wang et al. 2010): when one drug's reporting wave makes up most of a reaction's reports,
 the background rate inflates and the same reaction is hidden for every other drug. In
 FAERS, Vioxx litigation reports were ~70% of ALL myocardial-infarction reports in 2005–06,
-which is exactly why Avandia's MI signal does not appear until 2007–08 under the standard
-screen — and appears in 2005 once Vioxx is excluded. The timeline also *detects* masking by
-listing the top contributing drugs to the reaction's reports each year.
+which is exactly why Avandia's MI signal does not appear until 2008 under the standard
+screen — and appears in 2006 once Vioxx is excluded.
+
+Exclusion can be **manual** (``exclude=["rofecoxib", "vioxx"]``) or **rule-based**
+(``exclude=["auto"]``). The automatic rule is applied *prospectively, with no look-ahead*: in
+year Y only products that had already reached the alert share of the reaction's reports in some
+year <= Y are excluded. Anything else would let knowledge of the future leak into a claim about
+what was detectable in the past.
 
 Analogy: the "first seen" field in error monitoring (Sentry), or a control chart in
 manufacturing SPC — it turns a snapshot into a detection history.
@@ -32,11 +37,12 @@ import pandas as pd
 import yaml
 
 from pharos.faers.client import OpenFDAClient
+from pharos.signals.masking import alias_group
 from pharos.signals.stats import EVANS_2001, ContingencyTable, SignalCriteria, evaluate
 
 OPENFDA_FIRST_YEAR = 2004  # FAERS data in openFDA begins 2004 Q1
 ACTIONS_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "samples" / "regulatory_actions.yaml"
-MASKING_ALERT_SHARE_PCT = 25.0  # one drug ≥ this share of a reaction's reports in a year → masking risk
+MASKING_ALERT_SHARE_PCT = 25.0  # one drug >= this share of a reaction's reports in a year -> masking risk
 
 
 @dataclass
@@ -65,6 +71,8 @@ class TimelineResult:
     first_flag_year_cumulative: int | None
     first_flag_year_yearly: int | None
     exclude: list[str] = field(default_factory=list)
+    auto_excluded: bool = False
+    exclusion_schedule: list[dict] = field(default_factory=list)  # [{from_year, names}] — when each product entered
     first_flag_year_adjusted: int | None = None
     actions: list[RegulatoryAction] = field(default_factory=list)
     generated_at: str = ""
@@ -116,6 +124,13 @@ class TimelineResult:
         return (f" That is {-lead} year{'s' if lead != -1 else ''} AFTER the first regulatory action — {fa.label} "
                 f"({fa.date.isoformat()}). The standard screen did not lead here.")
 
+    def _exclusion_phrase(self) -> str:
+        if not self.auto_excluded:
+            return "Excluding " + ", ".join(self.exclude) + " from the background"
+        steps = "; ".join(f"{', '.join(s['names'])} from {s['from_year']}" for s in self.exclusion_schedule)
+        return (f"Applying the >={MASKING_ALERT_SHARE_PCT:.0f}% exclusion rule prospectively, with no look-ahead "
+                f"({steps})")
+
     def headline(self) -> str:
         pair = f"{self.drug} × {self.reaction}"
         if self.first_flag_year_cumulative is None:
@@ -132,17 +147,18 @@ class TimelineResult:
                   f"{self.reaction} reports in FAERS, inflating the background this drug is compared against.")
 
         if self.exclude:
-            ex = ", ".join(self.exclude)
             if self.first_flag_year_adjusted is None:
-                s += f" Excluding {ex} from the background, the criteria were still never met."
+                s += f" {self._exclusion_phrase()}, the criteria were still never met."
             else:
                 row = self.table.set_index("year").loc[self.first_flag_year_adjusted]
-                s += (f" Excluding {ex} from the background, the signal first met the criteria in {self.first_flag_year_adjusted} "
+                s += (f" {self._exclusion_phrase()}, the signal first met the criteria in {self.first_flag_year_adjusted} "
                       f"(PRR={row.cum_prr_adj:.2f}, chi²={row.cum_chi2_adj:.0f}).")
                 s += self._lead_sentence(self.first_flag_year_adjusted, self.lead_time_years_adjusted)
                 if self.first_flag_year_cumulative and self.first_flag_year_adjusted < self.first_flag_year_cumulative:
                     gained = self.first_flag_year_cumulative - self.first_flag_year_adjusted
                     s += f" Masking correction brings detection forward by {gained} year{'s' if gained != 1 else ''}."
+        elif self.auto_excluded:
+            s += " The automatic rule found no product above the exclusion threshold, so no correction was applied."
         return s
 
     def as_dict(self) -> dict:
@@ -156,6 +172,8 @@ class TimelineResult:
             "first_flag_year_cumulative": self.first_flag_year_cumulative,
             "first_flag_year_yearly": self.first_flag_year_yearly,
             "excluded_from_background": self.exclude,
+            "exclusion_selected_automatically": self.auto_excluded,
+            "exclusion_schedule": self.exclusion_schedule,
             "first_flag_year_masking_corrected": self.first_flag_year_adjusted,
             "regulatory_actions": [a.as_dict() for a in self.actions],
             "lead_time_years_vs_first_action": self.lead_time_years,
@@ -170,7 +188,9 @@ class TimelineResult:
                 "openFDA FAERS data begins in 2004; earlier regulatory actions cannot be evaluated prospectively.",
                 "Yearly PRR is noisy for small counts; use the cumulative series for the first-flag claim.",
                 "Masking: when one drug dominates a reaction's reports (see top_contributor per year), the background "
-                "inflates and hides the same reaction for other drugs. Re-run with that drug excluded to correct.",
+                "inflates and hides the same reaction for other drugs.",
+                "exclude_drugs='auto' applies the share rule prospectively: a product is excluded in year Y only if it had "
+                "already reached the threshold in some year <= Y. No look-ahead.",
                 "Reporting is stimulated by publicity and litigation; a sharp late rise often reflects that, not new risk.",
             ],
         }
@@ -229,33 +249,48 @@ def signal_timeline(
     """Year-by-year and cumulative disproportionality for one drug–reaction pair.
 
     Args:
-        exclude: drug names to remove from the comparator background (masking correction).
-        detect_masking: also fetch the top drugs contributing to the reaction's reports each year.
+        exclude: products to remove from the comparator background (masking correction). Names are
+            expanded to their known brand/generic aliases. The special value ``"auto"`` selects
+            maskers by rule, prospectively (see module docstring); it may be combined with names.
+        detect_masking: also fetch the top drugs contributing to the reaction's reports each year
+            (forced on when ``"auto"`` is used).
 
-    Request budget per year: 4 (total, drug, reaction, drug∧reaction) + 2 if ``exclude``
-    + 1 if ``detect_masking``. Total and reaction counts are drug-independent and cache across drugs.
+    Request budget per year: 4 (total, drug, reaction, drug∧reaction) + 1 if ``detect_masking``
+    + 2 per distinct exclusion set active up to that year.
     """
     if isinstance(names, str):
         names = [names]
     names = [n for n in names if n and n.strip()]
     if not names:
         raise ValueError("At least one drug name is required.")
-    exclude = [e for e in (exclude or []) if e and e.strip()]
+    exclude_in = [e for e in (exclude or []) if e and e.strip()]
+    auto = any(e.strip().lower() == "auto" for e in exclude_in)
+    if auto:
+        detect_masking = True
     client = client or OpenFDAClient()
     end_year = end_year or datetime.now(timezone.utc).year
     start_year = max(start_year, OPENFDA_FIRST_YEAR)
     if end_year < start_year:
         raise ValueError("end_year must be >= start_year")
 
+    own: set[str] = set()
+    for n in names:
+        own |= alias_group(n)
+    manual: set[str] = set()
+    for e in exclude_in:
+        if e.strip().lower() != "auto":
+            manual |= alias_group(e)
+    manual -= own
+
     drug_expr = client.drug_expression(names)
     rx_expr = client.reaction_expression(reaction)
-    ex_expr = client.drug_expression(exclude) if exclude else None
-    own = {n.strip().upper() for n in names}
     reaction_u = reaction.strip().upper()
 
-    rows = []
-    cum = {"a": 0, "drug": 0, "event": 0, "n": 0, "event_adj": 0, "n_adj": 0}
-    first_cum = first_year = first_adj = None
+    # ---------------------------------------------------------------- phase 1: the standard screen
+    rows: list[dict] = []
+    year_maskers: dict[int, set[str]] = {}
+    cum = {"a": 0, "drug": 0, "event": 0, "n": 0}
+    first_cum = first_year = None
     for year in range(start_year, end_year + 1):
         yr = client.year_expression(year)
         n_total = client.report_count(yr)
@@ -296,22 +331,79 @@ def signal_timeline(
             "cum_signal": bool(cumulative.is_signal) if cumulative else False,
         }
 
-        if ex_expr:
-            n_ex = client.report_count(client.and_(ex_expr, yr))
-            e_ex = client.report_count(client.and_(ex_expr, rx_expr, yr))
-            n_total_adj = max(n_total - n_ex, n_drug)
-            n_event_adj = max(n_event - e_ex, a)
-            yearly_adj = _eval(a, n_drug, n_event_adj, n_total_adj, criteria)
-            cum["event_adj"] += n_event_adj
-            cum["n_adj"] += n_total_adj
-            cumulative_adj = _eval(cum["a"], cum["drug"], cum["event_adj"], cum["n_adj"], criteria)
-            if cumulative_adj and cumulative_adj.is_signal and first_adj is None:
-                first_adj = year
+        if detect_masking:
+            contributors = [c for c in client.drug_contributors(client.and_(rx_expr, yr), limit=top_contributors + len(own) + 2)
+                            if c["term"].upper() not in own][:top_contributors]
+            for c in contributors:
+                c["share_pct"] = (100 * c["count"] / n_event) if n_event else 0.0
+            top = contributors[0] if contributors else None
+            year_maskers[year] = {c["term"].upper() for c in contributors if c["share_pct"] >= MASKING_ALERT_SHARE_PCT}
             row.update(
                 {
+                    "top_contributor": top["term"] if top else "",
+                    "top_contributor_share_pct": top["share_pct"] if top else 0.0,
+                    "masking_alert": bool(year_maskers[year]),
+                    "contributors": contributors,
+                }
+            )
+        rows.append(row)
+
+    # ---------------------------------------------------------------- phase 2: masking correction
+    # active[Y] = the exclusion set in force in year Y. Manual names apply to every year; automatic ones
+    # enter only in the first year they reach the threshold — never earlier (no look-ahead).
+    running: set[str] = set(manual)
+    active: dict[int, frozenset[str]] = {}
+    schedule: list[dict] = []
+    if manual:
+        schedule.append({"from_year": rows[0]["year"] if rows else start_year, "names": sorted(manual)})
+    for row in rows:
+        if auto:
+            new: set[str] = set()
+            for m in year_maskers.get(row["year"], set()):
+                new |= alias_group(m)
+            new -= own | running
+            if new:
+                running |= new
+                schedule.append({"from_year": row["year"], "names": sorted(new)})
+        active[row["year"]] = frozenset(running)
+
+    first_adj = None
+    if any(active.values()):
+        ex_cache: dict[tuple[frozenset[str], int], tuple[int, int]] = {}
+
+        def ex_counts(s: frozenset[str], y: int) -> tuple[int, int]:
+            if (s, y) not in ex_cache:
+                expr = client.drug_expression(sorted(s))
+                yr = client.year_expression(y)
+                ex_cache[(s, y)] = (client.report_count(client.and_(expr, yr)),
+                                    client.report_count(client.and_(expr, rx_expr, yr)))
+            return ex_cache[(s, y)]
+
+        for i, row in enumerate(rows):
+            s = active[row["year"]]
+            if s:
+                n_ex, e_ex = ex_counts(s, row["year"])
+            else:
+                n_ex = e_ex = 0
+            n_total_adj = max(row["n_total"] - n_ex, row["n_drug"])
+            n_event_adj = max(row["n_event"] - e_ex, row["a"])
+            yearly_adj = _eval(row["a"], row["n_drug"], n_event_adj, n_total_adj, criteria)
+
+            # Cumulative to this year, using the set in force THIS year for every earlier year too.
+            c_event = c_total = 0
+            for prev in rows[: i + 1]:
+                p_n_ex, p_e_ex = ex_counts(s, prev["year"]) if s else (0, 0)
+                c_total += max(prev["n_total"] - p_n_ex, prev["n_drug"])
+                c_event += max(prev["n_event"] - p_e_ex, prev["a"])
+            cumulative_adj = _eval(row["cum_a"], row["cum_drug"], c_event, c_total, criteria)
+            if cumulative_adj and cumulative_adj.is_signal and first_adj is None:
+                first_adj = row["year"]
+            row.update(
+                {
+                    "excluded_as_of_year": ", ".join(sorted(s)),
                     "excluded_reports": n_ex,
                     "excluded_event_reports": e_ex,
-                    "excluded_share_of_event_pct": (100 * e_ex / n_event) if n_event else 0.0,
+                    "excluded_share_of_event_pct": (100 * e_ex / row["n_event"]) if row["n_event"] else 0.0,
                     "background_adj_pct": 100 * n_event_adj / n_total_adj if n_total_adj else 0.0,
                     "prr_year_adj": yearly_adj.prr if yearly_adj else None,
                     "cum_prr_adj": cumulative_adj.prr if cumulative_adj else None,
@@ -321,23 +413,6 @@ def signal_timeline(
                     "cum_signal_adj": bool(cumulative_adj.is_signal) if cumulative_adj else False,
                 }
             )
-
-        if detect_masking:
-            contributors = [c for c in client.drug_contributors(client.and_(rx_expr, yr), limit=top_contributors + len(own) + 2)
-                            if c["term"].upper() not in own][:top_contributors]
-            for c in contributors:
-                c["share_pct"] = (100 * c["count"] / n_event) if n_event else 0.0
-            top = contributors[0] if contributors else None
-            row.update(
-                {
-                    "top_contributor": top["term"] if top else "",
-                    "top_contributor_share_pct": top["share_pct"] if top else 0.0,
-                    "masking_alert": bool(top and top["share_pct"] >= MASKING_ALERT_SHARE_PCT),
-                    "contributors": contributors,
-                }
-            )
-
-        rows.append(row)
 
     df = pd.DataFrame(rows)
     return TimelineResult(
@@ -350,7 +425,9 @@ def signal_timeline(
         criteria=criteria,
         first_flag_year_cumulative=first_cum,
         first_flag_year_yearly=first_year,
-        exclude=[e.strip().upper() for e in exclude],
+        exclude=sorted(running),
+        auto_excluded=auto,
+        exclusion_schedule=schedule,
         first_flag_year_adjusted=first_adj,
         actions=actions if actions is not None else actions_for(names),
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),

@@ -39,6 +39,9 @@ from pharos.ctd.report import gap_report_markdown  # noqa: E402
 from pharos.faers.client import OpenFDAClient  # noqa: E402
 from pharos.signals.cluster import cluster_signals  # noqa: E402
 from pharos.signals.detector import compute_pair, scan_drug  # noqa: E402
+from pharos.faers.client import OpenFDAError  # noqa: E402
+from pharos.signals.label import annotate_with_label, check_reaction, label_summary, load_label  # noqa: E402
+from pharos.signals.masking import find_hidden_signals as _find_hidden_signals  # noqa: E402
 from pharos.signals.stats import SignalCriteria  # noqa: E402
 from pharos.signals.timeline import signal_timeline  # noqa: E402
 
@@ -48,8 +51,11 @@ mcp = FastMCP(
     "pharos",
     instructions=(
         "Pharos is a drug-safety evidence engine. Use scan_signals / compute_prr to get "
-        "disproportionality statistics from real FDA FAERS data, cluster_signals to group them by "
-        "organ system, and check_ctd_dossier to audit a regulatory dossier outline against ICH M4. "
+        "disproportionality statistics from real FDA FAERS data (each signal is tagged as already on the "
+        "FDA label or NOT on the label — prioritise the unlabelled ones), cluster_signals to group them by "
+        "organ system, find_hidden_signals to discover signals the standard screen misses because another "
+        "product floods the background (masking), signal_emergence_timeline to date a signal, and "
+        "check_ctd_dossier to audit a regulatory dossier outline against ICH M4. "
         "The tools return numbers and structured gaps; YOU write the interpretation. Always state the "
         "case count, PRR with CI, and chi-square when describing a signal, and always caveat that "
         "spontaneous-report disproportionality shows association, not causation, and is subject to "
@@ -104,9 +110,21 @@ def scan_signals(
         max_rows: cap on rows returned to keep the response readable.
     """
     criteria = SignalCriteria(min_cases=min_cases, prr_threshold=prr_threshold, chi2_threshold=chi2_threshold)
-    res = scan_drug(_split_names(drug, aliases), client(), top_n=top_n, criteria=criteria)
+    names = _split_names(drug, aliases)
+    res = scan_drug(names, client(), top_n=top_n, criteria=criteria)
+    label_block: dict[str, Any] = {"label_found": False, "note": "label check unavailable"}
+    try:
+        lab = load_label(names, client())
+        res.table = annotate_with_label(res.table, lab)
+        label_block = lab.as_dict() | label_summary(res.table)
+    except OpenFDAError as exc:  # offline without a cached label, etc. — the scan is still valid
+        label_block["note"] = str(exc).splitlines()[0]
     out = res.as_dict(top=max_rows)
+    out["fda_label"] = label_block
     out["interpretation_notes"] = [
+        "Each row's label_status says whether the reaction is already on the current FDA label (and how prominently) "
+        "or NOT found on it. Unlabelled clinical signals are the ones worth a reviewer's time; labelled ones are expected. "
+        "Label matching is text-based — say 'not found on the label', not 'unlabelled' as a regulatory fact.",
         "PRR/ROR measure disproportionality of *reporting*, not incidence or causation.",
         "Administrative terms are statistically evaluated but excluded from clinical signal counts.",
         "Large litigation or media events inflate reporting for specific drug–event pairs (notoriety bias).",
@@ -157,6 +175,72 @@ def search_reports(drug: str, reaction: str = "", aliases: str = "", limit: int 
 
 
 @mcp.tool()
+def find_hidden_signals(
+    drug: str,
+    aliases: str = "",
+    as_of_year: int = 0,
+    start_year: int = 2004,
+    top_n: int = 60,
+    max_checks: int = 30,
+    min_share_pct: float = 25.0,
+    min_cases: int = 3,
+    prr_threshold: float = 2.0,
+    chi2_threshold: float = 4.0,
+) -> dict[str, Any]:
+    """Which signals is the STANDARD screen hiding? Automatic masking detection + correction for one drug.
+
+    Disproportionality compares a drug against all other drugs. When one product's reporting wave (litigation,
+    media, a recall) makes up a large share of a reaction's reports, the background inflates and the same
+    reaction is hidden for every other drug ("masking"). For each of the drug's most-reported reactions this
+    tool asks openFDA which products dominate that reaction's reports in the window; any single product with
+    >= min_share_pct is removed from the comparator (with its brand/generic aliases) and the statistics are
+    recomputed. The masker is chosen by this fixed rule — not by an analyst.
+
+    Each row gets a status: 'unmasked' (no signal under the standard screen, signal once corrected — the
+    headline finding), 'strengthened' (signal both ways, PRR up >= 25%), 'masked, sub-threshold', 'no masking'.
+
+    Args:
+        as_of_year: use only reports FDA had received by 31 Dec of this year (0 = today). Masking is
+            time-local, so this matters: e.g. rosiglitazone as_of_year=2006 reveals MYOCARDIAL INFARCTION
+            hidden behind Vioxx (PRR 0.77 -> 2.18), a year before the Nissen meta-analysis.
+        max_checks: reactions to check for masking (1–3 API requests each).
+    """
+    criteria = SignalCriteria(min_cases=min_cases, prr_threshold=prr_threshold, chi2_threshold=chi2_threshold)
+    res = _find_hidden_signals(_split_names(drug, aliases), client(), as_of_year=as_of_year or None, start_year=start_year,
+                               top_n=top_n, max_checks=max_checks, min_share_pct=min_share_pct, criteria=criteria)
+    out = res.as_dict()
+    # keep the payload readable: masked rows first, then the top of the rest
+    rows = out["rows"]
+    interesting = [r for r in rows if r["status"] in ("unmasked", "strengthened", "masked, sub-threshold")]
+    out["rows"] = interesting + [r for r in rows if r not in interesting][:15]
+    return out
+
+
+@mcp.tool()
+def check_fda_label(drug: str, reactions: str, aliases: str = "") -> dict[str, Any]:
+    """Is each reaction already on the drug's current FDA label — and how prominently?
+
+    Fetches the current US label (SPL) from openFDA and looks for each MedDRA term in the boxed warning,
+    warnings & precautions, contraindications, adverse reactions and other safety sections (British->American
+    spelling and common lay synonyms handled). Returns, per reaction: label_status, the section, and the
+    sentence where it was found. 'no current label' is returned for withdrawn/discontinued products.
+
+    Args:
+        reactions: comma-separated MedDRA preferred terms, e.g. "LACTIC ACIDOSIS, ACUTE KIDNEY INJURY".
+    """
+    names = _split_names(drug, aliases)
+    lab = load_label(names, client())
+    terms = [r.strip().upper() for r in reactions.split(",") if r.strip()]
+    return {
+        "drug": drug.upper(),
+        "fda_label": lab.as_dict(),
+        "reactions": [{"reaction": t, **check_reaction(t, lab)} for t in terms],
+        "note": "Text-based matching: 'UNLABELLED' means not found on the label by text search — a prompt to read the label, "
+                "not a regulatory determination.",
+    }
+
+
+@mcp.tool()
 def signal_emergence_timeline(
     drug: str,
     reaction: str,
@@ -179,14 +263,17 @@ def signal_emergence_timeline(
 
     MASKING: with detect_masking=True each year also lists the top drugs behind the reaction's reports
     ('top_contributor', 'top_contributor_share_pct', 'masking_alert' when one drug ≥ 25%). If one drug
-    dominates, call again with exclude_drugs set to it: the tool removes those reports from the comparator
+    dominates, call again with exclude_drugs: the tool removes those reports from the comparator
     background and returns a masking-corrected series ('cum_prr_adj', 'first_flag_year_masking_corrected').
+    Prefer exclude_drugs="auto": maskers are then chosen by the ≥25% rule and applied PROSPECTIVELY — a
+    product is excluded in year Y only if it had already crossed the threshold in some year ≤ Y, so no
+    knowledge of the future leaks into a claim about the past ('exclusion_schedule' shows when each entered).
     Example: rosiglitazone × MYOCARDIAL INFARCTION is masked by Vioxx litigation reports (~70% of all MI
-    reports in 2005–06); exclude_drugs="rofecoxib, vioxx" moves first detection from 2008 to 2005.
+    reports in 2005–06); standard first detection 2008, corrected 2006 — a year before the Nissen meta-analysis.
 
     Args:
         drug / aliases / reaction: as in compute_prr.
-        exclude_drugs: comma-separated drug names to remove from the background.
+        exclude_drugs: "auto" (recommended) and/or comma-separated drug names to remove from the background.
         start_year: openFDA data begins 2004; earlier years are ignored.
         end_year: 0 = current year. Narrow the range to save API requests (4–7 per year).
     """
@@ -267,7 +354,7 @@ def about() -> str:
         "Mode 1: PRR/ROR/chi-square signal detection over openFDA FAERS (20M+ reports).\n"
         "Mode 2: ICH M4 CTD submission-readiness checking.\n"
         "Tools: scan_signals, compute_prr, cluster_signals_by_organ_system, search_reports, "
-        "signal_emergence_timeline, check_ctd_dossier, get_ctd_spec."
+        "find_hidden_signals, check_fda_label, signal_emergence_timeline, check_ctd_dossier, get_ctd_spec."
     )
 
 
@@ -276,8 +363,10 @@ def signal_assessment(drug: str, aliases: str = "") -> str:
     """Prompt template: produce a pharmacovigilance signal assessment for a drug."""
     return (
         f"Run scan_signals for '{drug}' (aliases: '{aliases}'). Then, for the top 3 clinical signals, call "
-        "compute_prr to confirm each with an exact query and search_reports to see 2–3 real cases. For the "
-        "strongest signal call signal_emergence_timeline to establish when it first met the criteria. "
+        "compute_prr to confirm each with an exact query and search_reports to see 2–3 real cases. Separate the "
+        "signals already on the FDA label from those NOT on it (the fda_label block) and lead with the latter. "
+        "Call find_hidden_signals to check whether masking is hiding anything. For the strongest or most novel "
+        "signal call signal_emergence_timeline with exclude_drugs='auto' to establish when it first met the criteria. "
         "Write a signal assessment memo with: (1) BLUF — one sentence verdict; (2) a table of the top "
         "signals with n, PRR [CI], chi²; (3) organ-system grouping from cluster_signals_by_organ_system; "
         "(4) the emergence year of the lead signal and its lead time versus any regulatory action; "

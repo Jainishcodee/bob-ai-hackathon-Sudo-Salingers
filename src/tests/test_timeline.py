@@ -156,3 +156,66 @@ def test_start_year_is_clamped_to_openfda_window():
 def test_end_before_start_raises():
     with pytest.raises(ValueError):
         signal_timeline("drug", "rx", client=FakeYearClient(), start_year=2006, end_year=2005, actions=[])
+
+
+# ------------------------------------------------------------------ rule-based exclusion, no look-ahead
+
+
+class FakeTwoMaskers(FakeYearClient):
+    """MASKER dominates from 2004 (60%). A second product, LATE, only reaches 30% from 2006 onward."""
+
+    EVENTS = {"MASKER": 600, "LATE": 300}
+
+    @staticmethod
+    def drug_expression(names):
+        names = [names] if isinstance(names, str) else list(names)
+        ex = sorted(n.upper() for n in names if n.upper() in ("MASKER", "LATE"))
+        return "EX_" + "_".join(ex) if ex else "DRUG"
+
+    def report_count(self, expr=None):
+        tokens = expr.split("+")
+        ex = next((t for t in tokens if t.startswith("EX_")), None)
+        if ex is None:
+            return super().report_count(expr)
+        if self._year(expr) not in self.share:
+            return 0
+        names = ex[3:].split("_")
+        return sum(self.EVENTS[n] for n in names) if "RX" in tokens else self.N_EX * len(names)
+
+    def drug_contributors(self, expr, limit=8):
+        year = self._year(expr)
+        out = [{"term": "MASKER", "count": 600}, {"term": "DRUG", "count": 10}]
+        if year >= 2006:
+            out.insert(1, {"term": "LATE", "count": 300})
+        return out
+
+
+def test_auto_exclusion_is_prospective_with_no_look_ahead():
+    res = signal_timeline("drug", "rx", client=FakeTwoMaskers(), start_year=2004, end_year=2007, actions=[], exclude=["auto"])
+    assert res.auto_excluded
+    assert res.exclusion_schedule == [{"from_year": 2004, "names": ["MASKER"]}, {"from_year": 2006, "names": ["LATE"]}]
+    df = res.table.set_index("year")
+    # LATE crosses the threshold in 2006 — it must NOT be excluded in 2004 or 2005.
+    assert df.loc[2004, "excluded_as_of_year"] == "MASKER"
+    assert df.loc[2005, "excluded_as_of_year"] == "MASKER"
+    assert df.loc[2006, "excluded_as_of_year"] == "LATE, MASKER"
+    assert res.exclude == ["LATE", "MASKER"]
+    assert "no look-ahead" in res.headline()
+
+
+def test_auto_matches_manual_when_the_same_product_is_the_only_masker():
+    auto = signal_timeline("drug", "rx", client=FakeYearClient(), start_year=2004, end_year=2007, actions=[], exclude=["auto"])
+    manual = signal_timeline("drug", "rx", client=FakeYearClient(), start_year=2004, end_year=2007, actions=[], exclude=["masker"])
+    assert auto.first_flag_year_adjusted == manual.first_flag_year_adjusted == 2004
+    assert list(auto.table["cum_prr_adj"].round(6)) == list(manual.table["cum_prr_adj"].round(6))
+
+
+def test_auto_with_nothing_above_threshold_applies_no_correction():
+    class Quiet(FakeYearClient):
+        def drug_contributors(self, expr, limit=8):
+            return [{"term": "ASPIRIN", "count": 50}]
+
+    res = signal_timeline("drug", "rx", client=Quiet(), start_year=2004, end_year=2006, actions=[], exclude=["auto"])
+    assert res.exclude == [] and res.first_flag_year_adjusted is None
+    assert "no product above the exclusion threshold" in res.headline()
+    assert "cum_prr_adj" not in res.table.columns
