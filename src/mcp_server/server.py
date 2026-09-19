@@ -45,7 +45,7 @@ from pharos.signals.masking import find_hidden_signals as _find_hidden_signals  
 from pharos.signals.stats import SignalCriteria  # noqa: E402
 from pharos.signals.timeline import signal_timeline  # noqa: E402
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # src/.env — explicit, so it works from any working directory
 
 mcp = FastMCP(
     "pharos",

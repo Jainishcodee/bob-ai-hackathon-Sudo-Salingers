@@ -31,13 +31,61 @@ from pharos.signals.masking import find_hidden_signals  # noqa: E402
 from pharos.signals.stats import SignalCriteria  # noqa: E402
 from pharos.signals.timeline import actions_for, signal_timeline  # noqa: E402
 
-load_dotenv()
+load_dotenv(SRC_DIR / ".env")
 
 SAMPLES = SRC_DIR / "data" / "samples"
-TIER_COLOR = {"strong": "#C0392B", "moderate": "#E67E22", "weak": "#F1C40F", "none": "#95A5A6"}
-SEV_COLOR = {"critical": "#C0392B", "major": "#E67E22", "minor": "#F1C40F"}
+# ---- Colour. Every set below was run through a palette validator (colour-blind separation, contrast,
+# lightness) against the light surface; change a value and it needs re-checking.
+SERIES_1 = "#2a78d6"   # categorical slot 1 — the standard screen
+SERIES_2 = "#eb6834"   # categorical slot 2 — the masking-corrected screen  (CVD ΔE 24.7 vs slot 1)
+# Evidence tier is an ORDER, so it gets one hue stepping light → dark, not three unrelated colours.
+TIER_COLOR = {"weak": "#86b6ef", "moderate": "#3987e5", "strong": "#184f95", "none": "#c3c2b7"}
+# Status colours are reserved for state and never stand alone — each is paired with a label or a marker shape.
+STATUS = {"good": "#0ca30c", "warning": "#fab219", "serious": "#ec835a", "critical": "#d03b3b"}
+SEV_ICON = {"critical": "🔴 critical", "major": "🟠 major", "minor": "🟡 minor"}
+INK, INK_2, INK_MUTED = "#0b0b0b", "#52514e", "#898781"
+GRID, AXIS = "#e1e0d9", "#c3c2b7"
+FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif'
 
 st.set_page_config(page_title="Pharos — drug safety", page_icon="🔦", layout="wide")
+
+st.markdown(
+    """
+    <style>
+      .block-container {padding-top: 2.2rem; max-width: 1400px;}
+      h1 {font-weight: 700; letter-spacing: -0.02em;}
+      /* stat tiles: a quiet card instead of bare text */
+      div[data-testid="stMetric"] {
+        background: #ffffff; border: 1px solid rgba(11,11,11,0.10); border-radius: 10px; padding: 12px 16px;
+      }
+      div[data-testid="stMetricLabel"] p {color: #52514e; font-size: 0.82rem;}
+      div[data-testid="stMetricValue"] {font-size: 1.55rem; font-weight: 650;}
+      /* tabs and expanders */
+      button[data-baseweb="tab"] p {font-size: 1.02rem; font-weight: 600;}
+      div[data-testid="stExpander"] details {border: 1px solid rgba(11,11,11,0.10); border-radius: 10px; background: #ffffff;}
+      div[data-testid="stExpander"] summary p {font-weight: 600;}
+      section[data-testid="stSidebar"] {border-right: 1px solid rgba(11,11,11,0.08);}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+def style_fig(fig: go.Figure) -> go.Figure:
+    """House style for every chart: transparent on the page surface, recessive solid hairline grid, system font,
+    text in ink (never in a series colour). Leaves title text, height, margins and legend position alone."""
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family=FONT, color=INK_2, size=13),
+        title_font=dict(family=FONT, color=INK, size=16),
+        legend=dict(font=dict(color=INK_2), bgcolor="rgba(0,0,0,0)"),
+        hoverlabel=dict(bgcolor="#ffffff", bordercolor=AXIS, font=dict(family=FONT, color=INK, size=13)),
+        bargap=0.28,
+    )
+    fig.update_xaxes(showgrid=True, gridcolor=GRID, gridwidth=1, griddash="solid", zeroline=False,
+                     linecolor=AXIS, tickfont=dict(color=INK_MUTED), title_font=dict(color=INK_2))
+    fig.update_yaxes(showgrid=False, zeroline=False, linecolor=AXIS, tickfont=dict(color=INK_2), title_font=dict(color=INK_2))
+    return fig
 
 
 # ------------------------------------------------------------------ cached workers
@@ -192,32 +240,33 @@ with tab1:
                         x=top["prr"],
                         y=top["reaction"].str.title(),
                         orientation="h",
-                        marker_color=[TIER_COLOR[t] for t in top["tier"]],
-                        error_x=dict(type="data", symmetric=False, array=top["prr_ci_high"] - top["prr"], arrayminus=top["prr"] - top["prr_ci_low"], thickness=1),
+                        marker=dict(color=[TIER_COLOR[t] for t in top["tier"]], cornerradius=4),
+                        error_x=dict(type="data", symmetric=False, array=top["prr_ci_high"] - top["prr"], arrayminus=top["prr"] - top["prr_ci_low"], thickness=1, width=3, color=INK_2),
                         customdata=top[["n_cases", "chi2", "ror", "tier"]].values,
                         hovertemplate="<b>%{y}</b><br>PRR %{x:.2f}<br>n = %{customdata[0]:,}<br>χ² %{customdata[1]:,.0f}<br>ROR %{customdata[2]:.2f}<br>tier %{customdata[3]}<extra></extra>",
                     )
                 )
-                fig.add_vline(x=prr_t, line_dash="dash", line_color="#7F8C8D", annotation_text=f"PRR = {prr_t}")
+                fig.add_vline(x=prr_t, line_color=AXIS, line_width=1.5, annotation_text=f"PRR = {prr_t}", annotation_font_color=INK_2)
                 fig.update_layout(
                     title="Clinical signals — PRR with 95% CI (log scale)",
                     xaxis_type="log", xaxis_title="Proportional Reporting Ratio", yaxis_title="",
                     height=max(400, 22 * len(top) + 120), margin=dict(l=10, r=10, t=50, b=10),
                 )
-                st.plotly_chart(fig, width="stretch")
+                st.plotly_chart(style_fig(fig), width="stretch")
+                st.caption("Bar shade = strength of evidence: light **weak** · mid **moderate** · dark **strong**. Whiskers = 95% confidence interval.")
             with g2:
                 cl = cluster_signals(df)
                 if not cl.empty:
                     fig2 = go.Figure(
                         go.Bar(
-                            x=cl["n_cases"], y=cl["soc"], orientation="h", marker_color="#2C3E50",
+                            x=cl["n_cases"], y=cl["soc"], orientation="h", marker=dict(color=SERIES_1, cornerradius=4),
                             customdata=cl[["n_reactions", "max_prr", "strongest_reaction"]].values,
                             hovertemplate="<b>%{y}</b><br>cases %{x:,}<br>signals %{customdata[0]}<br>max PRR %{customdata[1]:.1f}<br>strongest: %{customdata[2]}<extra></extra>",
                         )
                     )
                     fig2.update_layout(title="Signals by organ system (cases)", yaxis=dict(autorange="reversed"), xaxis_title="cases",
                                        height=max(400, 28 * len(cl) + 120), margin=dict(l=10, r=10, t=50, b=10))
-                    st.plotly_chart(fig2, width="stretch")
+                    st.plotly_chart(style_fig(fig2), width="stretch")
                     st.caption("Heuristic MedDRA SOC mapping — confirm against licensed MedDRA.")
 
         st.markdown("#### All evaluated reactions")
@@ -298,23 +347,27 @@ with tab1:
                     hit = hdf[hdf["status"].isin(["unmasked", "strengthened", "masked, sub-threshold"])].copy() if not hdf.empty else hdf
                     if not hit.empty:
                         hit = hit.iloc[::-1]
-                        colour = {"unmasked": "#C0392B", "strengthened": "#E67E22", "masked, sub-threshold": "#95A5A6"}
+                        colour = {"unmasked": STATUS["critical"], "strengthened": STATUS["serious"], "masked, sub-threshold": INK_MUTED}
+                        shape = {"unmasked": "circle", "strengthened": "diamond", "masked, sub-threshold": "circle-open"}
                         figh = go.Figure()
                         for _, r in hit.iterrows():
                             figh.add_trace(go.Scatter(x=[r["prr_std"], r["prr_adj"]], y=[r["reaction"].title()] * 2, mode="lines",
-                                                      line=dict(color=colour[r["status"]], width=3), showlegend=False, hoverinfo="skip"))
+                                                      line=dict(color=AXIS, width=2), showlegend=False, hoverinfo="skip"))
                         figh.add_trace(go.Scatter(x=hit["prr_std"], y=hit["reaction"].str.title(), mode="markers", name="standard PRR",
-                                                  marker=dict(size=11, color="#7F8C8D", symbol="circle-open", line=dict(width=2)),
+                                                  marker=dict(size=11, color=INK_MUTED, symbol="circle-open", line=dict(width=2)),
                                                   hovertemplate="<b>%{y}</b><br>standard PRR %{x:.2f}<extra></extra>"))
                         figh.add_trace(go.Scatter(x=hit["prr_adj"], y=hit["reaction"].str.title(), mode="markers", name="corrected PRR (masker excluded)",
-                                                  marker=dict(size=13, color=[colour[s] for s in hit["status"]]),
+                                                  marker=dict(size=13, color=[colour[s] for s in hit["status"]], symbol=[shape[s] for s in hit["status"]],
+                                                              line=dict(width=2, color="#fcfcfb")),
                                                   customdata=hit[["maskers", "excluded_share_pct", "status"]].values,
                                                   hovertemplate="<b>%{y}</b><br>corrected PRR %{x:.2f}<br>masker: %{customdata[0]} (%{customdata[1]:.0f}% of reports)<br>%{customdata[2]}<extra></extra>"))
-                        figh.add_vline(x=prr_t, line_dash="dash", line_color="#2C3E50", annotation_text=f"signal threshold PRR = {prr_t}")
+                        figh.add_vline(x=prr_t, line_color=AXIS, line_width=1.5, annotation_text=f"signal threshold PRR = {prr_t}", annotation_font_color=INK_2)
                         figh.update_layout(title=f"{hs['drug']} as of {hs['window']['end_year']} — standard vs masking-corrected PRR", xaxis_type="log",
                                            xaxis_title="PRR (log) — a line crossing the dashed threshold is a signal the standard screen hides",
                                            height=max(320, 46 * len(hit) + 140), legend=dict(orientation="h", y=-0.25), margin=dict(l=10, r=10, t=50, b=10))
-                        st.plotly_chart(figh, width="stretch")
+                        st.plotly_chart(style_fig(figh), width="stretch")
+                        st.caption("○ standard PRR → corrected PRR: ● red circle = **hidden signal** (crosses the threshold only once the masker is removed) · "
+                                   "◆ orange diamond = existing signal **understated ≥ 25%** · ○ grey = masked but still below threshold.")
                         show = hit.iloc[::-1][["reaction", "n_cases", "prr_std", "signal_std", "maskers", "excluded_share_pct", "prr_adj", "chi2_adj", "status"]].rename(
                             columns={"n_cases": "cases", "prr_std": "PRR standard", "signal_std": "signal (standard)", "maskers": "masking product",
                                      "excluded_share_pct": "its share of the reaction's reports %", "prr_adj": "PRR corrected", "chi2_adj": "χ² corrected"})
@@ -374,7 +427,7 @@ with tab1:
 
                     fig3 = go.Figure()
                     fig3.add_trace(go.Scatter(x=tdf["year"], y=tdf["cum_prr"], mode="lines+markers", name="Cumulative PRR — standard (what was knowable that year)",
-                                              line=dict(color="#C0392B", width=3),
+                                              line=dict(color=SERIES_1, width=2), marker=dict(size=8),
                                               customdata=tdf[["cum_a", "cum_chi2", "cum_prr_ci_low", "cum_prr_ci_high"]].values,
                                               hovertemplate="<b>%{x}</b><br>cumulative PRR %{y:.2f} [%{customdata[2]:.2f}–%{customdata[3]:.2f}]<br>cumulative cases %{customdata[0]:,}<br>χ² %{customdata[1]:,.0f}<extra></extra>"))
                     if has_adj and "cum_prr_adj" in tdf:
@@ -387,27 +440,27 @@ with tab1:
                             adj_name = f"Cumulative PRR — excluding {', '.join(tl['excluded_from_background']).title()}"
                         fig3.add_trace(go.Scatter(x=tdf["year"], y=tdf["cum_prr_adj"], mode="lines+markers",
                                                   name=adj_name,
-                                                  line=dict(color="#27AE60", width=3),
+                                                  line=dict(color=SERIES_2, width=2), marker=dict(size=8, symbol="diamond"),
                                                   customdata=tdf[["background_adj_pct", "excluded_share_of_event_pct"]].values,
                                                   hovertemplate="<b>%{x}</b><br>corrected PRR %{y:.2f}<br>corrected background %{customdata[0]:.2f}%<br>excluded drug's share of reaction reports %{customdata[1]:.0f}%<extra></extra>"))
                     fig3.add_trace(go.Scatter(x=tdf["year"], y=tdf["prr_year"], mode="lines+markers", name="PRR that year only",
-                                              line=dict(color="#7F8C8D", width=1.5, dash="dot"),
+                                              line=dict(color=INK_MUTED, width=2, dash="dot"), marker=dict(size=6),
                                               customdata=tdf[["a", "n_drug"]].values,
                                               hovertemplate="<b>%{x}</b><br>yearly PRR %{y:.2f}<br>cases %{customdata[0]:,} of %{customdata[1]:,} drug reports<extra></extra>"))
-                    fig3.add_hline(y=prr_t, line_dash="dash", line_color="#2C3E50", annotation_text=f"signal threshold PRR = {prr_t}", annotation_position="bottom right")
+                    fig3.add_hline(y=prr_t, line_color=AXIS, line_width=1.5, annotation_text=f"signal threshold PRR = {prr_t}", annotation_position="bottom right", annotation_font_color=INK_2)
                     if first:
-                        fig3.add_vline(x=first, line_color="#C0392B", line_width=2, annotation_text=f"standard: {first}", annotation_position="top left")
+                        fig3.add_vline(x=first, line_color=SERIES_1, line_width=2, annotation_text=f"standard: {first}", annotation_position="top left", annotation_font_color=INK)
                     if has_adj and first_adj:
-                        fig3.add_vline(x=first_adj - 0.03, line_color="#27AE60", line_width=2, annotation_text=f"corrected: {first_adj}", annotation_position="bottom left")
+                        fig3.add_vline(x=first_adj - 0.03, line_color=SERIES_2, line_width=2, annotation_text=f"corrected: {first_adj}", annotation_position="bottom left", annotation_font_color=INK)
                     for a in acts:
                         if int(tl_from) <= a["year"] <= int(tl_to):
-                            fig3.add_vline(x=a["year"] + 0.02, line_dash="dash", line_color="#0f62fe")
+                            fig3.add_vline(x=a["year"] + 0.02, line_color=INK_MUTED, line_width=1)
                             fig3.add_annotation(x=a["year"], y=1, yref="paper", text=a["label"][:48] + ("…" if len(a["label"]) > 48 else ""),
-                                                showarrow=False, textangle=-90, xanchor="right", yanchor="top", font=dict(size=10, color="#0f62fe"))
+                                                showarrow=False, textangle=-90, xanchor="right", yanchor="top", font=dict(size=10, color=INK_2))
                     fig3.update_layout(title=f"{tl['drug']} × {tl['reaction'].title()} — signal emergence", yaxis_type="log", yaxis_title="PRR (log)",
                                        xaxis=dict(dtick=1, title="year (FDA receive date)"), height=460, legend=dict(orientation="h", y=-0.2),
                                        margin=dict(l=10, r=10, t=60, b=10))
-                    st.plotly_chart(fig3, width="stretch")
+                    st.plotly_chart(style_fig(fig3), width="stretch")
                     with st.expander("Year-by-year table"):
                         show_cols = ["year", "n_drug", "a", "share_of_drug_reports_pct", "background_pct", "prr_year", "cum_a", "cum_prr", "cum_chi2", "cum_signal"]
                         renames = {"n_drug": "drug reports", "a": "drug × reaction", "share_of_drug_reports_pct": "% of drug reports",
@@ -481,7 +534,7 @@ with tab2:
         fig = go.Figure(
             go.Bar(
                 x=mod_df["score_pct"], y=[f"M{m} · {t}" for m, t in zip(mod_df["module_id"], mod_df["title"])], orientation="h",
-                marker_color=["#27AE60" if s >= 100 else ("#E67E22" if s >= 80 else "#C0392B") for s in mod_df["score_pct"]],
+                marker=dict(color=[STATUS["good"] if s >= 100 else (STATUS["warning"] if s >= 80 else STATUS["critical"]) for s in mod_df["score_pct"]], cornerradius=4),
                 text=[f"{s:.0f}%" for s in mod_df["score_pct"]], textposition="outside",
                 customdata=mod_df[["required_present", "required_total", "required_draft"]].values,
                 hovertemplate="<b>%{y}</b><br>%{x:.0f}% complete<br>required present %{customdata[0]}/%{customdata[1]}<br>draft %{customdata[2]}<extra></extra>",
@@ -489,15 +542,14 @@ with tab2:
         )
         fig.update_layout(title="Completeness by CTD module (weighted, required sections)", xaxis=dict(range=[0, 110], title="%"),
                           yaxis=dict(autorange="reversed"), height=320, margin=dict(l=10, r=10, t=50, b=10))
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(style_fig(fig), width="stretch")
+        st.caption("Green = complete · amber = 80–99% · red = below 80%. Each bar is labelled with its score.")
 
         st.markdown("#### Gaps in required sections — most severe first")
         if result.gaps:
             gap_df = pd.DataFrame([g.as_dict() for g in result.gaps])[["severity", "section_id", "title", "module", "status", "note"]]
-            st.dataframe(
-                gap_df.style.map(lambda v: f"color: {SEV_COLOR.get(v, 'inherit')}; font-weight: 700", subset=["severity"]),
-                width="stretch", hide_index=True,
-            )
+            gap_df["severity"] = gap_df["severity"].map(lambda v: SEV_ICON.get(v, v))  # icon + word, so it is never colour alone
+            st.dataframe(gap_df, width="stretch", hide_index=True)
         else:
             st.success("No gaps in required sections.")
 

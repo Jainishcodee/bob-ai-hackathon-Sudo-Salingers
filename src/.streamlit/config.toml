@@ -1,0 +1,13 @@
+# Pharos dashboard theme. Streamlit reads this when `streamlit run` is started from src/.
+# Light by design: the demo is projected, and dark charts wash out on a projector.
+
+[theme]
+base = "light"
+primaryColor = "#2a78d6"               # buttons, active tab, sliders — same blue as chart series 1
+backgroundColor = "#fcfcfb"            # page and chart surface (charts are transparent on top of it)
+secondaryBackgroundColor = "#f1f0ec"   # sidebar, inputs, expanders
+textColor = "#0b0b0b"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false

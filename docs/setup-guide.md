@@ -70,12 +70,20 @@ python -m pharos prr rofecoxib "myocardial infarction" --alias vioxx
 # Show everything (non-signals and administrative terms too), export JSON
 python -m pharos scan ibuprofen --alias advil --all --json ibuprofen.json
 
+# WHAT is the standard screen hiding? Automatic masking detection + correction (instant from cache)
+python -m pharos hidden rosiglitazone --alias avandia --as-of 2006
+python -m pharos hidden sibutramine --alias meridia --alias reductil --as-of 2006
+
+# Known or new? Signals split by the current FDA label
+python -m pharos scan metformin --alias glucophage
+
 # WHEN did the signal emerge, and what masked it? (4–7 requests per year; ~30 s live, instant from cache)
 python -m pharos timeline rosiglitazone "myocardial infarction" --alias avandia --to 2013
+python -m pharos timeline rosiglitazone "myocardial infarction" --alias avandia -x auto --to 2013
 python -m pharos timeline rosiglitazone "myocardial infarction" --alias avandia -x rofecoxib -x vioxx --to 2013
 ```
 
-The second form excludes Vioxx from the comparator background. Compare the two headlines: standard screen flags 2008; masking-corrected flags 2006.
+`-x auto` lets the ≥ 25% share rule choose the masker, prospectively (a product is excluded only from the first year it crossed the threshold — no look-ahead); the third form names it by hand. Both give the same answer: standard screen flags 2008; masking-corrected flags 2006.
 
 ### Mode 2 — submission readiness (CLI)
 
@@ -118,15 +126,17 @@ The repository already ships with this cache populated, so the demo drugs work o
 python -m pytest tests -q
 ```
 
-Expected: `50 passed`. The tests are fully offline (fake FAERS client, hand-computed reference values, headless Streamlit).
+Expected: `80 passed`. The tests are fully offline (fake FAERS client, hand-computed reference values, headless Streamlit).
 
 Then:
 
 | Check | Command | You should see |
 |---|---|---|
-| Statistics | `python -m pharos prr rofecoxib "myocardial infarction" --alias vioxx` | A 2×2 table with `a ≈ 19,886`, PRR ≈ 49, **SIGNAL · strong** |
+| Statistics | `python -m pharos prr rofecoxib "myocardial infarction" --alias vioxx` | A 2×2 table with `a = 17,981`, PRR ≈ 52, **SIGNAL · strong** — the same count the scan reports (exact preferred-term matching) |
 | Scan | `python -m pharos scan rofecoxib --alias vioxx` | ~30 clinical signals; MYOCARDIAL INFARCTION, CORONARY ARTERY DISEASE, CEREBROVASCULAR ACCIDENT near the top; a *Cardiac disorders* cluster |
-| Timeline | `python -m pharos timeline rosiglitazone "myocardial infarction" --alias avandia -x rofecoxib -x vioxx --to 2013` | Headline: standard first flag **2008** (1 yr after Nissen); `VIOXX (72%) ⚠` in the 2006 masking column; Vioxx-excluded first flag **2006** (1 yr before Nissen); "brings detection forward by 2 years" |
+| Timeline | `python -m pharos timeline rosiglitazone "myocardial infarction" --alias avandia -x auto --to 2013` | Headline: standard first flag **2008** (1 yr after Nissen); `VIOXX (73%) ⚠` in the 2006 masking column; rule-based exclusion "ROFECOXIB, VIOXX from 2004; … from 2007"; corrected first flag **2006** (1 yr before Nissen); "brings detection forward by 2 years" |
+| Hidden signals | `python -m pharos hidden rosiglitazone --alias avandia --as-of 2006` | "found 1 MORE … MYOCARDIAL INFARCTION (PRR 0.77 -> 2.18 once VIOXX, 66% of its reports, is excluded)"; 5 understated incl. CARDIAC FAILURE CONGESTIVE |
+| Label check | `python -m pharos scan metformin --alias glucophage` | Panel line "12 already labelled (4 in the boxed warning) · 3 NOT on the label"; LACTIC ACIDOSIS row shows *boxed warning* |
 | CTD (bad) | `python -m pharos ctd-check data/samples/dossier_incomplete.yaml` | NOT READY, 75.4%, 12 gaps (10 critical) incl. 1.14, 3.2.P.8, 5.3.5.3 and all 4.2.3.x; a warning that "4.2.3" was listed as a single section; exit code 1 |
 | CTD (good) | `python -m pharos ctd-check data/samples/dossier_complete.yaml` | READY TO SUBMIT, 100% |
 | UI | `streamlit run app/streamlit_app.py` | Browser opens; sidebar shows "Reports in FAERS: 20,6xx,xxx" |

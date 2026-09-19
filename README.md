@@ -54,7 +54,7 @@ Pharos is a two-mode evidence engine with IBM Bob as its reasoning layer.
 |---|---|
 | **Languages** | Python 3.10+ |
 | **Frameworks** | Streamlit, Typer + Rich, Plotly, pandas, httpx, pytest |
-| **IBM Technologies** | IBM Bob — development (Plan / Agent modes, `/review`) **and** runtime (Bob ↔ Pharos over MCP) |
+| **IBM Technologies** | **IBM Bob** — runtime: Bob is the analyst, calling Pharos's 9 tools over MCP (transcripts in `demo/transcripts/`); review: Bob's Ask mode used to check the statistics module against Evans 2001 |
 | **Databases** | openFDA FAERS API (FDA Adverse Event Reporting System, 20.7M reports); JSON disk cache |
 | **Other** | Model Context Protocol (FastMCP), ICH M4 CTD checklist in YAML, GitHub Actions validator |
 
