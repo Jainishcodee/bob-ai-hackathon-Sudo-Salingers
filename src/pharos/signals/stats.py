@@ -15,6 +15,9 @@ Metrics implemented (all standard in pharmacovigilance, none invented here):
 * ROR  — Reporting Odds Ratio, with 95% CI (preferred by EMA / Eudravigilance).
 * chi² — Pearson chi-square with Yates' continuity correction, as used in the
          original Evans criteria.
+* IC   — WHO-UMC Information Component (Norén et al. 2013, shrinkage form). A
+         Bayesian measure that is more conservative with small counts than PRR.
+         IC025 > 0 is the WHO signal rule.
 
 Signal criteria default to Evans (2001): PRR >= 2, chi² >= 4, and at least 3 cases.
 """
@@ -116,6 +119,35 @@ def chi_square(t: ContingencyTable, yates: bool = True) -> float:
     return n * diff * diff / denom
 
 
+def ic(t: ContingencyTable) -> float:
+    """WHO-UMC Information Component (Norén et al. 2013, shrinkage form).
+
+    IC = log2((a + 0.5) / (E + 0.5))  where E = (a+b)*(a+c) / N.
+
+    The +0.5 shrinkage handles zero cells without a separate Haldane correction.
+    Uses the ORIGINAL table, not the Haldane-corrected one, per the specification.
+    """
+    n = t.n
+    if n == 0:
+        return 0.0
+    expected = (t.a + t.b) * (t.a + t.c) / n
+    return math.log2((t.a + 0.5) / (expected + 0.5))
+
+
+def ic025(t: ContingencyTable) -> float:
+    """Lower 95% credibility bound for the IC (Norén et al. 2013 approximation).
+
+    IC025 = IC - 3.3 * (a + 0.5)^{-0.5} - 2.0 * (a + 0.5)^{-1.5}
+
+    The WHO signal rule is IC025 > 0. This approximation is less conservative
+    than PRR-based criteria at small case counts, making disagreements clinically
+    meaningful.
+    """
+    ic_v = ic(t)
+    shrink = t.a + 0.5
+    return ic_v - 3.3 * shrink ** -0.5 - 2.0 * shrink ** -1.5
+
+
 def strength_tier(prr_value: float, chi2_value: float, n_cases: float, is_signal: bool) -> str:
     """Coarse prioritisation tier. A triage heuristic for ranking a worklist —
     NOT a regulatory classification, and documented as such."""
@@ -142,6 +174,11 @@ class DisproportionalityResult:
     is_signal: bool
     tier: str
     haldane_corrected: bool
+    # WHO-UMC IC fields — defaults keep all existing call-sites working unchanged.
+    ic: float = 0.0
+    ic025: float = 0.0
+    is_signal_ic: bool = False   # WHO rule: IC025 > 0 AND n >= min_cases
+    methods_agree: bool = True   # False when Evans and WHO IC rules disagree
     criteria: SignalCriteria = field(default_factory=SignalCriteria)
 
     def as_dict(self) -> dict:
@@ -152,11 +189,15 @@ class DisproportionalityResult:
 
     def summary_line(self, reaction: str, drug: str) -> str:
         flag = "SIGNAL" if self.is_signal else "no signal"
-        return (
+        line = (
             f"{drug} × {reaction}: n={self.n_cases}, PRR={self.prr:.2f} "
             f"[{self.prr_ci_low:.2f}–{self.prr_ci_high:.2f}], ROR={self.ror:.2f}, "
             f"chi²={self.chi2:.1f} → {flag} ({self.tier})"
+            f", IC025={self.ic025:.2f}"
         )
+        if not self.methods_agree:
+            line += " ⚠ methods disagree"
+        return line
 
 
 def evaluate(
@@ -167,6 +208,9 @@ def evaluate(
     The signal decision uses the *uncorrected* case count (a) for the min-cases rule, but
     if any cell is zero the ratios are computed on the Haldane-corrected table so they
     stay finite.
+
+    IC and IC025 always use the original table — the +0.5 shrinkage in the IC formula
+    already handles zero cells, so a separate Haldane correction is not needed there.
     """
     n_cases = int(round(table.a))
     work = table.haldane_corrected() if table.has_zero_cell else table
@@ -185,6 +229,11 @@ def evaluate(
     )
     tier = strength_tier(prr_v, chi2_v, n_cases, is_signal)
 
+    ic_v = ic(table)
+    ic025_v = ic025(table)
+    is_signal_ic = (ic025_v > 0) and (n_cases >= criteria.min_cases)
+    methods_agree = is_signal == is_signal_ic
+
     return DisproportionalityResult(
         table=table,
         n_cases=n_cases,
@@ -198,5 +247,9 @@ def evaluate(
         is_signal=is_signal,
         tier=tier,
         haldane_corrected=corrected,
+        ic=ic_v,
+        ic025=ic025_v,
+        is_signal_ic=is_signal_ic,
+        methods_agree=methods_agree,
         criteria=criteria,
     )

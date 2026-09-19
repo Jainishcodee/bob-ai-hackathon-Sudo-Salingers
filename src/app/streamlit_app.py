@@ -156,9 +156,9 @@ with st.sidebar:
         "Pharos is the *evidence layer*: it returns numbers, tables and structured gaps. "
         "IBM Bob, connected through the Pharos **MCP server**, is the *reasoning layer* that reads "
         "that evidence and writes the signal assessment or the dossier remediation memo.\n\n"
-        "Each tab shows the prompt to paste into Bob."
+    
     )
-    st.caption("See `docs/bob-integration.md`.")
+    
 
 st.title("🔦 Pharos")
 st.markdown(
@@ -280,14 +280,21 @@ with tab1:
         if view.empty:
             st.info("Nothing to show with these filters.")
         else:
+            n_disagree = int((~df["methods_agree"]).sum()) if "methods_agree" in df.columns else 0
+            if n_disagree > 0:
+                st.caption(
+                    f"⚠ **{n_disagree} reaction(s)** where the Evans (PRR) and WHO (IC025) signal rules disagree — "
+                    "usually a small case count; review both verdicts."
+                )
             pretty = view.assign(
                 **{
                     "PRR [95% CI]": view.apply(lambda r: f"{r.prr:.2f} [{r.prr_ci_low:.2f}–{r.prr_ci_high:.2f}]", axis=1),
                     "ROR": view["ror"].round(2),
                     "χ²": view["chi2"].round(1),
+                    "IC025": view["ic025"].round(2) if "ic025" in view.columns else None,
                 }
             )
-            cols = ["reaction", "n_cases", "PRR [95% CI]", "ROR", "χ²", "tier"]
+            cols = ["reaction", "n_cases", "PRR [95% CI]", "ROR", "χ²", "IC025", "tier"]
             if has_label_col:
                 pretty = pretty.rename(columns={"label_status": "on FDA label?", "label_snippet": "where on the label"})
                 cols += ["on FDA label?", "where on the label"]
@@ -552,6 +559,24 @@ with tab2:
             st.dataframe(gap_df, width="stretch", hide_index=True)
         else:
             st.success("No gaps in required sections.")
+
+        if result.remediation_order:
+            st.markdown("#### What to fix first")
+            gap_by_id = {g.section_id: g for g in result.gaps}
+            order_rows = []
+            for i, sid in enumerate(result.remediation_order, 1):
+                g = gap_by_id.get(sid)
+                if g is None:
+                    continue
+                order_rows.append({
+                    "#": i,
+                    "Section": g.section_id,
+                    "Title": g.title,
+                    "Severity": f"{SEV_ICON.get(g.severity, g.severity)} {g.severity}",
+                    "Unblocks": ", ".join(g.blocks) if g.blocks else "—",
+                })
+            order_df = pd.DataFrame(order_rows)
+            st.dataframe(order_df, width="stretch", hide_index=True)
 
         w1, w2 = st.columns(2)
         with w1:

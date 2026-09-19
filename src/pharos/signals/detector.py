@@ -56,6 +56,10 @@ COLUMNS = [
     "tier",
     "is_administrative",
     "haldane_corrected",
+    "ic",
+    "ic025",
+    "is_signal_ic",
+    "methods_agree",
 ]
 
 
@@ -90,6 +94,7 @@ class ScanResult:
             "n_reactions_evaluated": int(len(self.table)),
             "n_signals": int(self.table["is_signal"].sum()),
             "n_clinical_signals": int(len(self.signals())),
+            "n_methods_disagree": int((~self.table["methods_agree"]).sum()) if not self.table.empty else 0,
             "rows": rows.to_dict(orient="records"),
             "skipped_reactions": self.skipped_reactions,
         }
@@ -161,6 +166,10 @@ def scan_drug(
                 "tier": res.tier,
                 "is_administrative": term in ADMINISTRATIVE_TERMS,
                 "haldane_corrected": res.haldane_corrected,
+                "ic": res.ic,
+                "ic025": res.ic025,
+                "is_signal_ic": res.is_signal_ic,
+                "methods_agree": res.methods_agree,
             }
         )
 

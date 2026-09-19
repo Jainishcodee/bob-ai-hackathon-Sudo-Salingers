@@ -77,6 +77,18 @@ def test_as_dict_is_json_friendly():
     assert d["n_clinical_signals"] == 2
 
 
+def test_scan_table_has_ic_columns():
+    res = scan_drug(["testdrug"], client=FakeClient(), top_n=10)
+    for col in ("ic", "ic025", "is_signal_ic", "methods_agree"):
+        assert col in res.table.columns, f"Missing column: {col}"
+
+
+def test_as_dict_has_n_methods_disagree():
+    d = scan_drug("testdrug", client=FakeClient()).as_dict()
+    assert "n_methods_disagree" in d
+    assert isinstance(d["n_methods_disagree"], int)
+
+
 def test_soc_assignment_curated_and_heuristic():
     assert assign_soc("MYOCARDIAL INFARCTION") == ("Cardiac disorders", "curated")
     assert assign_soc("SOME NEW HEPATIC THING")[0] == "Hepatobiliary disorders"

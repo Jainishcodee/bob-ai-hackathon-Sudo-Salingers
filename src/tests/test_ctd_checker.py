@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from pharos.ctd.checker import (
     check_outline,
@@ -122,3 +123,99 @@ def test_markdown_report_renders_key_sections():
     assert "NOT READY" in md
     assert "3.2.P.8" in md
     assert "Warnings" in md
+
+
+# ------------------------------------------------------------------ remediation order tests
+
+
+def test_remediation_order_topology(tmp_path):
+    """a) topological ordering: 5.3.5.3 before 2.7 before 2.5 before 1.14; 4.2.3.5 before 1.14."""
+    res = check_outline(load_outline(SAMPLES / "dossier_incomplete.yaml"))
+    order = res.remediation_order
+    assert order.index("5.3.5.3") < order.index("2.7")
+    assert order.index("2.7") < order.index("2.5")
+    assert order.index("2.5") < order.index("1.14")
+    assert order.index("4.2.3.5") < order.index("1.14")
+
+
+def test_remediation_order_blocks(tmp_path):
+    """b) blocks field: 5.3.5.3 blocks 1.14, 2.5, 2.7 (sorted); 4.2.3.5 is in 1.14's ancestors."""
+    res = check_outline(load_outline(SAMPLES / "dossier_incomplete.yaml"))
+    gap_by_id = {g.section_id: g for g in res.gaps}
+    assert gap_by_id["5.3.5.3"].blocks == sorted(["1.14", "2.5", "2.7"])
+    assert "1.14" in gap_by_id["4.2.3.5"].blocks
+
+
+def test_remediation_order_complete_coverage(tmp_path):
+    """c) every gap appears exactly once; d) gaps list order is unchanged (first element critical)."""
+    res = check_outline(load_outline(SAMPLES / "dossier_incomplete.yaml"))
+    order = res.remediation_order
+    # c) length matches
+    assert len(order) == len(res.gaps)
+    # c) every gap id present exactly once
+    assert sorted(order) == sorted(g.section_id for g in res.gaps)
+    assert len(set(order)) == len(order)
+
+
+def test_gaps_order_unchanged():
+    """d) result.gaps severity order is unchanged — first gap must be critical."""
+    res = check_outline(load_outline(SAMPLES / "dossier_incomplete.yaml"))
+    assert res.gaps[0].severity == "critical"
+
+
+def test_complete_dossier_remediation_order_empty():
+    """e) complete dossier has no gaps → remediation_order == []."""
+    res = check_outline(load_outline(SAMPLES / "dossier_complete.yaml"))
+    assert res.remediation_order == []
+
+
+def test_cycle_raises_value_error(tmp_path):
+    """f) two leaves that depend on each other must raise ValueError naming both ids."""
+    spec = {
+        "version": "test",
+        "modules": [
+            {
+                "id": "2",
+                "title": "Test module",
+                "regional": False,
+                "note": "",
+                "sections": [
+                    {
+                        "id": "2.A",
+                        "title": "Section A",
+                        "required": True,
+                        "weight": 3,
+                        "note": "",
+                        "depends_on": ["2.B"],
+                    },
+                    {
+                        "id": "2.B",
+                        "title": "Section B",
+                        "required": True,
+                        "weight": 3,
+                        "note": "",
+                        "depends_on": ["2.A"],
+                    },
+                ],
+            }
+        ],
+    }
+    spec_file = tmp_path / "cycle_spec.yaml"
+    spec_file.write_text(yaml.safe_dump(spec), encoding="utf-8")
+    with pytest.raises(ValueError) as exc_info:
+        check_outline({"sections": []}, spec_path=spec_file)
+    msg = str(exc_info.value)
+    assert "2.A" in msg
+    assert "2.B" in msg
+
+
+def test_depends_on_non_gap_is_ignored():
+    """g) a depends_on id that is present in the outline (not a gap) is silently ignored."""
+    # 5.3.5.1 IS present in dossier_incomplete — it is not a gap.
+    # 5.3.5.3 depends on 5.3.5.1 and 5.3.5.2; only 5.3.5.3 is missing.
+    res = check_outline(load_outline(SAMPLES / "dossier_incomplete.yaml"))
+    gap_by_id = {g.section_id: g for g in res.gaps}
+    # 5.3.5.1 not a gap → not in depends_on_gaps of 5.3.5.3
+    assert "5.3.5.1" not in gap_by_id["5.3.5.3"].depends_on_gaps
+    # the result is still valid (no exception)
+    assert "5.3.5.3" in res.remediation_order
