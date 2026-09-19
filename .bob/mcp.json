@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "pharos": {
+      "command": "python",
+      "args": ["-m", "mcp_server.server"],
+      "timeout": 600000,
+      "alwaysAllow": [
+        "scan_signals",
+        "compute_prr",
+        "cluster_signals_by_organ_system",
+        "search_reports",
+        "find_hidden_signals",
+        "check_fda_label",
+        "signal_emergence_timeline",
+        "check_ctd_dossier",
+        "get_ctd_spec"
+      ]
+    }
+  }
+}

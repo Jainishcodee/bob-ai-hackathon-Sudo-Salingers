@@ -1,0 +1,26 @@
+{
+  "_readme": "OPTIONAL and OFF by default. To enable Bob lifecycle hooks, copy this file to .bob/settings.json and restart Bob. To disable again, delete .bob/settings.json. See docs/round2/BOB-SUPERPOWERS.md, idea 9. Try it on a quiet day — not for the first time on demo day.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python .bob/hooks/session_start.py", "timeout": 8 }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python .bob/hooks/guard_prompt.py", "timeout": 5 }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python .bob/hooks/guard_tool.py", "timeout": 5 }
+        ]
+      }
+    ]
+  }
+}

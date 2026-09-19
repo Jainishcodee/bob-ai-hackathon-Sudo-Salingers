@@ -23,7 +23,7 @@ from rich.table import Table
 
 from pharos import __version__
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")  # src/.env, independent of the working directory
 
 app = typer.Typer(
     help="Pharos — a lighthouse for drug safety. Signal detection over FDA FAERS + ICH M4 CTD readiness checks.",

@@ -15,17 +15,18 @@ graph TD
     RA -->|browser| UI
     PV -->|terminal| CLI[pharos CLI<br/>src/pharos/cli.py]
 
-    BOB -->|MCP · stdio| MCP[Pharos MCP server<br/>src/mcp_server/server.py<br/>7 tools · 2 prompts · 1 resource]
+    BOB -->|MCP · stdio| MCP[Pharos MCP server<br/>src/mcp_server/server.py<br/>9 tools · 2 prompts · 1 resource]
 
     MCP --> ENG[pharos engine<br/>evidence layer]
     UI --> ENG
     CLI --> ENG
 
-    ENG --> SIG[signals/<br/>stats.py · detector.py · cluster.py · timeline.py<br/>PRR · ROR · χ² · Evans · SOC clustering<br/>yearly & cumulative emergence · masking detection/correction]
+    ENG --> SIG[signals/<br/>stats.py · detector.py · cluster.py<br/>timeline.py · masking.py · label.py<br/>PRR · ROR · χ² · Evans · SOC clustering<br/>emergence timeline · hidden-signal finder · FDA label check]
     ENG --> CTD[ctd/<br/>checker.py · report.py<br/>weighted scoring · ranked gaps]
 
     SIG --> CLIENT[faers/client.py<br/>openFDA client<br/>disk cache · offline mode · retry]
     CLIENT -->|HTTPS · count & search| FDA[(openFDA FAERS API<br/>20.7M adverse-event reports)]
+    CLIENT -->|HTTPS| LBL[(openFDA drug label API<br/>current FDA-approved labels)]
     CLIENT <--> CACHE[(faers/cache/*.json<br/>committed demo snapshot)]
 
     CTD --> SPEC[(ctd/data/ich_m4_ctd.yaml<br/>ICH M4 · 69 leaf sections<br/>required · weight · note)]
@@ -41,8 +42,8 @@ graph TD
 
 | Component | Technology | Responsibility |
 |---|---|---|
-| **IBM Bob** | IBM Bob IDE / CLI, MCP client | The analyst. Calls Pharos tools, verifies signals, reads cases, writes the signal-assessment memo or dossier remediation plan. Also used to *build* Pharos (Plan/Agent modes, `/review`). |
-| **Pharos MCP server** | Python, `mcp` 2.x (`MCPServer`), stdio transport | Exposes `scan_signals`, `compute_prr`, `cluster_signals_by_organ_system`, `search_reports`, `signal_emergence_timeline`, `check_ctd_dossier`, `get_ctd_spec`; prompt templates `signal_assessment`, `dossier_gap_memo`; resource `pharos://about`. Server instructions constrain Bob to state n / PRR / CI / χ² and avoid causal language. |
+| **IBM Bob** | IBM Bob IDE / CLI, MCP client | The analyst. Calls Pharos tools, verifies signals, reads cases, writes the signal-assessment memo or dossier remediation plan. Also used in Ask mode to review the statistics module. |
+| **Pharos MCP server** | Python, `mcp` 2.x (`MCPServer`), stdio transport | Exposes `scan_signals`, `compute_prr`, `cluster_signals_by_organ_system`, `search_reports`, `find_hidden_signals`, `check_fda_label`, `signal_emergence_timeline`, `check_ctd_dossier`, `get_ctd_spec`; prompt templates `signal_assessment`, `dossier_gap_memo`; resource `pharos://about`. Server instructions constrain Bob to state n / PRR / CI / χ² and avoid causal language. |
 | **Streamlit dashboard** | Streamlit, Plotly, pandas | Two tabs. Signal Detection: drug input, criteria sliders, PRR bar chart with CIs, organ-system chart, table, 2×2 drill-down, CSV/JSON export, Bob prompt. Submission Readiness: sample/upload outline, module completeness bars, ranked gaps, warnings, Markdown report download, Bob prompt. |
 | **CLI** | Typer, Rich | `scan`, `prr`, `ctd-check`, `ctd-template`, `build-cache`, `version`. Rich tables; `--json` for pipelines. |
 | **signals/stats.py** | pure Python | `ContingencyTable`, PRR/ROR + 95% CI, Yates χ², Haldane correction, `SignalCriteria`, `evaluate()`. |
@@ -53,7 +54,7 @@ graph TD
 | **ctd/checker.py** | PyYAML, difflib | Load spec (region variant), parse outline (dict/list/bare strings), id normalisation + fuzzy title match, weighted per-module score, ranked `Gap`s, warnings, `outline_template()`. |
 | **ctd/report.py** | — | Markdown gap report. |
 | **ctd/data/ich_m4_ctd.yaml** | YAML | The ICH M4 checklist: Modules 1 (US/EU variants), 2, 3, 4, 5; 69 leaves; `required`, `weight`, `note`. |
-| **tests/** | pytest | 50 tests. Statistics against a hand-computed 2×2; detector and timeline (incl. masking correction) against fake clients (no network); checker against generated and sample outlines; Streamlit `AppTest` smoke test that clicks Scan. |
+| **tests/** | pytest | 80 tests. Statistics against a hand-computed 2×2; detector, timeline (incl. the no-look-ahead rule), hidden-signal finder and label matcher against fake clients (no network); checker against generated and sample outlines; Streamlit `AppTest` smoke test that clicks Scan. |
 
 ## Data flow — Mode 1 (signal scan)
 
@@ -98,6 +99,8 @@ src/pharos/signals/stats.py     2×2 statistics (tested)
 src/pharos/signals/detector.py  scan + pair analysis
 src/pharos/signals/cluster.py   SOC clustering
 src/pharos/signals/timeline.py  emergence timeline + masking
+src/pharos/signals/masking.py   hidden-signal finder, alias groups
+src/pharos/signals/label.py     FDA label check (known vs new)
 src/pharos/ctd/checker.py       CTD matching + scoring
 src/pharos/ctd/report.py        Markdown report
 src/pharos/ctd/data/ich_m4_ctd.yaml

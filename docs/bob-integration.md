@@ -4,7 +4,7 @@ Pharos uses IBM Bob in two ways, and the distinction matters for how the project
 
 | | How | Where to see it |
 |---|---|---|
-| **Bob built it** | Plan mode to design the module layout and the evidence/reasoning split; Agent mode to implement; `/review` on the statistics module before writing tests; a subagent to research openFDA query syntax and rate limits. | This repo's history and structure. |
+| **Bob reviewed it** | Ask mode: Bob read the statistics module and checked the PRR, ROR and Yates chi-square formulas against Evans, Waller & Davis (2001). | `demo/screenshots/08-bob-ask-mode.png` |
 | **Bob runs it** | Bob connects to the **Pharos MCP server** and becomes the conversational analyst: it calls the tools, verifies signals, reads real cases, and writes the memo. | `src/mcp_server/server.py`; this document. |
 
 The second is the load-bearing one. Remove Bob and Pharos still computes but no longer explains or converses; remove Pharos and Bob would be guessing at statistics.
@@ -37,9 +37,9 @@ macOS / Linux: `"command": "/path/to/src/.venv/bin/python"` and forward slashes 
 
 If Bob's settings UI asks for fields rather than JSON: *command* = the python path, *arguments* = `-m mcp_server.server`, *working directory* = `src/`.
 
-**Step 3 — confirm.** Bob should list seven tools under `pharos`:
+**Step 3 — confirm.** Bob should list nine tools under `pharos`:
 
-`scan_signals` · `compute_prr` · `cluster_signals_by_organ_system` · `search_reports` · `signal_emergence_timeline` · `check_ctd_dossier` · `get_ctd_spec`
+`scan_signals` · `compute_prr` · `cluster_signals_by_organ_system` · `search_reports` · `find_hidden_signals` · `check_fda_label` · `signal_emergence_timeline` · `check_ctd_dossier` · `get_ctd_spec`
 
 plus two prompt templates (`signal_assessment`, `dossier_gap_memo`) and a resource (`pharos://about`).
 
@@ -53,6 +53,8 @@ Without Bob to hand, you can sanity-check the server with any MCP client, or sim
 | `compute_prr(drug, reaction, aliases)` | Exact 2×2 table + all statistics for one pair (uses an `AND` query, not the count approximation) | Verify the top signals before writing about them |
 | `cluster_signals_by_organ_system(drug, aliases)` | One row per MedDRA SOC with signal count, cases, max PRR, strongest reaction, curated share | Answer "is this cardiac or hepatic?" |
 | `search_reports(drug, reaction, aliases, limit)` | Trimmed real FAERS cases: id, date, seriousness, age/sex, reactions, co-drugs | Ground the statistics in narratives; spot confounders |
+| `find_hidden_signals(drug, aliases, as_of_year, min_share_pct, max_checks)` | Standard screen **plus** automatic masking correction for every reaction: status `unmasked` / `strengthened` / `masked, sub-threshold` / `no masking`, the masking product and its share, standard vs corrected PRR; a `headline` | Answer "what is the standard screen missing for this drug?" with no analyst choosing the masker |
+| `check_fda_label(drug, reactions, aliases)` | For each reaction: on the current FDA label or not, which section (boxed warning › warnings › adverse reactions…), and the sentence where it was found. `scan_signals` rows carry the same fields | Separate expected (labelled) signals from new ones — lead the memo with the unlabelled |
 | `signal_emergence_timeline(drug, reaction, aliases, exclude_drugs, start_year, end_year, detect_masking)` | Per-year and cumulative PRR by FDA receive date; first-flag year; top contributing drugs per year with `masking_alert`; masking-corrected series when `exclude_drugs` is set; real regulatory milestones and lead time; a dated `headline` sentence | Answer "when could we have known, and what hid it?" — then re-run with the masking drug excluded |
 | `check_ctd_dossier(outline_path | outline_json, region)` | Per-module scores, ranked gaps with severity and *why it matters*, warnings, verdict, Markdown report | Audit a dossier and write the remediation plan |
 | `get_ctd_spec(region, as_blank_outline)` | The ICH M4 checklist, or a blank fillable outline | Explain what's required; generate a template for a team |
@@ -87,7 +89,19 @@ masking-corrected screen flag it, how does each compare with the Nissen meta-ana
 signal detection should be run?
 ```
 
-Expected: Bob reports the standard first-flag year 2008 (after both milestones), notices `VIOXX` at 68–72% of MI reports in 2005–06, re-runs with `exclude_drugs="rofecoxib, vioxx"`, reports the corrected first-flag year 2006 (a year before Nissen), and concludes that disproportionality screens should routinely check for and correct masking — while noting the correction was analyst-directed.
+Expected: Bob reports the standard first-flag year 2008 (after both milestones), notices `VIOXX` at 69–73% of MI reports in 2005–06, re-runs with `exclude_drugs="rofecoxib, vioxx"`, reports the corrected first-flag year 2006 (a year before Nissen), and concludes that disproportionality screens should routinely check for and correct masking — while noting the correction was analyst-directed.
+
+**What is the standard screen hiding? — the hidden-signal finder**
+
+```
+Using pharos, call find_hidden_signals for sibutramine (aliases: meridia, reductil) with
+as_of_year 2006. Which signals does the standard screen miss, what product is masking
+them and how much of the background does it hold? Meridia was withdrawn in 2010 — what
+for, and does that match what you found? Then run scan_signals for metformin and tell me
+which of its signals are already on the FDA label and which are not.
+```
+
+Expected: Bob reports stroke (PRR 1.67 → 4.40) and myocardial infarction (1.06 → 2.95) hidden behind Vioxx (~65% of those reports), notes Meridia's 2010 withdrawal was for cardiovascular events and stroke, then for metformin separates the 12 labelled signals (lactic acidosis — boxed warning) from the 3 not found on the label.
 
 **Compare two drugs**
 

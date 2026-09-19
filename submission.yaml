@@ -13,7 +13,7 @@ team:
   track: "AI"                          # REQUIRED — one of: AI | DevOps | Sustainability | Open
   lead:
     name: "Jainish Shah"                    
-    email: "d24ce180@chatrusat.edu.in"     
+    email: "d24ce180@charusat.edu.in"     
   members:
     - name: "Bhavya Radiya"
       email: "d24ce168@charusat.edu.in"
@@ -54,7 +54,7 @@ submission:
   tech_stack:
     languages: ["Python"]                                          # REQUIRED
     frameworks: ["Streamlit", "Typer", "Plotly", "pandas", "httpx", "pytest"]
-    ibm_technologies: ["IBM Bob (development: Plan/Agent modes, /review)", "IBM Bob MCP integration (runtime: Pharos MCP server)"]
+    ibm_technologies: ["IBM Bob as the runtime analyst — calls the Pharos MCP server (9 tools), verifies signals, writes the memo", "IBM Bob Ask mode — independent review of the statistics module"]
     databases: ["openFDA FAERS API (FDA Adverse Event Reporting System, 20.7M reports)", "JSON disk cache"]
     other: ["Model Context Protocol (MCP) — FastMCP", "ICH M4 CTD checklist (YAML)", "GitHub Actions (template validator)"]
 
