@@ -135,6 +135,9 @@ def scan(
                 ct.add_row(r["soc"], str(r["n_reactions"]), str(r["n_cases"]), _fmt(r["max_prr"]), r["strongest_reaction"])
             console.print(ct)
 
+    n_disagree = int((~result.table["methods_agree"]).sum()) if not result.table.empty else 0
+    if n_disagree > 0:
+        console.print(f"[dim]{n_disagree} reaction(s) where PRR and IC disagree[/dim]")
     if result.skipped_reactions:
         console.print(f"[dim]{len(result.skipped_reactions)} rare reactions skipped (request budget).[/dim]")
     if json_out:
@@ -168,12 +171,14 @@ def prr(
     console.print(grid)
 
     verdict = "[bold red]SIGNAL[/bold red]" if res["is_signal"] else "[green]no signal[/green]"
+    who_verdict = "[bold red]SIGNAL[/bold red]" if res["is_signal_ic"] else "[green]no signal[/green]"
     console.print(
         Panel.fit(
             f"PRR = [bold]{res['prr']:.2f}[/bold]  (95% CI {res['prr_ci_low']:.2f}–{res['prr_ci_high']:.2f})\n"
             f"ROR = {res['ror']:.2f}  (95% CI {res['ror_ci_low']:.2f}–{res['ror_ci_high']:.2f})\n"
             f"χ² (Yates) = {res['chi2']:.1f}    cases = {res['n_cases']}\n"
-            f"Evans 2001 criteria → {verdict}   tier: {res['tier']}"
+            f"Evans 2001 criteria → {verdict}   tier: {res['tier']}\n"
+            f"IC = {res['ic']:.2f}   IC025 = {res['ic025']:.2f}  → WHO rule: {who_verdict}"
             + ("\n[dim]Haldane 0.5 correction applied (zero cell).[/dim]" if res["haldane_corrected"] else "")
             + f"\n[dim]source: {res['data_source']}[/dim]",
             title="Disproportionality",
@@ -376,6 +381,23 @@ def ctd_check(
         for g in result.gaps:
             gt.add_row(g.severity, g.section_id, g.title, g.status, g.note, style={"critical": "red", "major": "yellow"}.get(g.severity, ""))
         console.print(gt)
+
+    if result.remediation_order:
+        gap_by_id = {g.section_id: g for g in result.gaps}
+        ot = Table(title="Fix in this order", box=box.SIMPLE_HEAVY)
+        for col in ("#", "Section", "Title", "Severity", "Unblocks"):
+            ot.add_column(col, justify="right" if col == "#" else "left")
+        for i, sid in enumerate(result.remediation_order, 1):
+            g = gap_by_id.get(sid)
+            if g is None:
+                continue
+            unblocks = ", ".join(g.blocks) if g.blocks else "—"
+            ot.add_row(
+                str(i), g.section_id, g.title, g.severity, unblocks,
+                style={"critical": "red", "major": "yellow"}.get(g.severity, ""),
+            )
+        console.print(ot)
+
     for w in result.warnings:
         console.print(f"[yellow]⚠ {w}[/yellow]")
     for u in result.unmatched_entries:

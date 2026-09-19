@@ -100,6 +100,9 @@ def scan_signals(
     Returns reactions ranked with clinical signals first, each with case count (a), PRR + 95% CI,
     ROR + 95% CI, chi-square (Yates), signal flag under Evans (2001) criteria, a triage tier, and
     whether the term is administrative (e.g. DRUG INEFFECTIVE) rather than clinical.
+    Each row also carries ic, ic025, is_signal_ic (WHO rule IC025 > 0) and methods_agree;
+    disagreement between Evans and WHO rules usually means a small case count — present both
+    verdicts rather than picking a side.
 
     Args:
         drug: name as it appears in FAERS, e.g. "rofecoxib".
@@ -138,6 +141,9 @@ def compute_prr(drug: str, reaction: str, aliases: str = "") -> dict[str, Any]:
 
     Returns the a/b/c/d table, PRR and ROR with 95% CIs, chi-square, the Evans signal verdict,
     and a one-line summary. Use this to verify or drill into a specific pair from scan_signals.
+    Each row also carries ic, ic025, is_signal_ic (WHO rule IC025 > 0) and methods_agree;
+    disagreement between Evans and WHO rules usually means a small case count — present both
+    verdicts rather than picking a side.
     """
     return compute_pair(_split_names(drug, aliases), reaction, client())
 
@@ -296,6 +302,15 @@ def check_ctd_dossier(outline_path: str = "", outline_json: str = "", region: st
     severity (critical / major / minor) with a 'why it matters' note, warnings (e.g. a parent
     section listed instead of its sub-sections), unrecognised entries, and a ready-to-submit
     verdict. Also includes a Markdown gap report you can hand to the regulatory team.
+
+    The result also contains:
+    - remediation_order: a list of section ids sorted into a dependency-respecting "fix this
+      first" order (Kahn's topological sort on the gap dependency graph). Use this list — do
+      NOT invent your own order — when writing a remediation memo for the regulatory team.
+    - Each gap dict includes a `blocks` field: the list of other gap section ids (direct and
+      transitive) that cannot be finalised until this gap is resolved. Use it to explain to
+      the regulatory lead why addressing a foundational gap early unlocks multiple downstream
+      sections.
 
     Args:
         outline_path: path to the outline file, e.g. "data/samples/dossier_incomplete.yaml".

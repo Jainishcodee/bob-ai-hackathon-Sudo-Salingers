@@ -55,6 +55,18 @@ def gap_report_markdown(result: CTDCheckResult) -> str:
         for mid, o in optional:
             lines.append(f"- Module {mid}: {o}")
 
+    if result.remediation_order:
+        lines += ["", "## Remediation order — what to fix first", ""]
+        gap_by_id = {g.section_id: g for g in result.gaps}
+        for i, sid in enumerate(result.remediation_order, 1):
+            g = gap_by_id.get(sid)
+            if g is None:
+                continue
+            entry = f"{i}. **{g.section_id}** {g.title}  ({g.severity}, {g.status})"
+            if g.blocks:
+                entry += f" — unblocks: {', '.join(g.blocks)}"
+            lines.append(entry)
+
     if result.warnings:
         lines += ["", "## Warnings", ""]
         lines += [f"- {w}" for w in result.warnings]

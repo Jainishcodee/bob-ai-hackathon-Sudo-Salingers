@@ -33,5 +33,5 @@ A running record of what changed and why. Newest first. On 19 Sept this file sta
 
 - Built Pharos end to end: openFDA client with disk cache and offline mode; PRR / ROR / chi-square with Evans 2001 criteria; organ-system clustering; ICH M4 CTD checker (69 sections); Typer CLI; Streamlit dashboard; MCP server for IBM Bob.
 - **The finding that shaped the project:** we expected Avandia's heart-attack signal to be obvious in 2005. It wasn't — the standard screen flags it in **2008**, after the FDA had acted. The year-by-year "who is filing these reports?" column showed why: **Vioxx litigation reports were ~70% of all MI reports in 2005–06**. Excluding them moves first detection to **2006**, a year before the Nissen meta-analysis.
-- Bob, given one question, called the timeline tool, noticed Vioxx, and re-ran the corrected analysis **on its own initiative**. Transcript and screenshots in `demo/`.
+- Bob, given one question, called the timeline tool, **identified Vioxx as the dominant product itself** (the prompt never named it), and ran the corrected analysis. Transcript and screenshots in `demo/`.
 - Submitted; Validate Submission green; shortlisted for Round 2.

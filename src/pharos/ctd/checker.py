@@ -65,6 +65,7 @@ class SpecSection:
     weight: int = 1
     note: str = ""
     children: list["SpecSection"] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
 
     @property
     def is_leaf(self) -> bool:
@@ -103,6 +104,7 @@ def _build_sections(raw: list[dict], module_id: str) -> list[SpecSection]:
                 weight=int(item.get("weight", 1)),
                 note=str(item.get("note", "") or ""),
                 children=children,
+                depends_on=[str(d) for d in (item.get("depends_on") or [])],
             )
         )
     return out
@@ -233,6 +235,9 @@ class Gap:
     severity: str
     status: str  # "missing" | "draft"
     note: str
+    depends_on_gaps: list[str] = field(default_factory=list)  # dependencies that are themselves gaps
+    blocks: list[str] = field(default_factory=list)           # gaps that depend on this one (transitive)
+    order: int = 0                                             # 1-based remediation order
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -268,6 +273,7 @@ class CTDCheckResult:
     unmatched_entries: list[str]
     matched_sections: int
     spec_version: str
+    remediation_order: list[str] = field(default_factory=list)  # section ids in fix-first order
 
     def as_dict(self) -> dict:
         return {
@@ -284,7 +290,90 @@ class CTDCheckResult:
             "warnings": self.warnings,
             "unmatched_entries": self.unmatched_entries,
             "matched_sections": self.matched_sections,
+            "remediation_order": self.remediation_order,
         }
+
+
+# ------------------------------------------------------------------ dependency ordering
+
+
+def order_gaps(gaps: list[Gap], leaves_by_id: dict[str, "SpecSection"]) -> list[Gap]:
+    """Sort *gaps* into a dependency-respecting remediation order using Kahn's algorithm.
+
+    Only edges between sections that are themselves gaps are considered — a dependency on a
+    section that is already complete is ignored. Among nodes that are ready (all predecessors
+    done), the tie-breaking key is (weight descending, "missing" before "draft", section_id
+    ascending) so the output is fully deterministic.
+
+    Side-effects: sets `gap.depends_on_gaps`, `gap.blocks` (transitive closure) and
+    `gap.order` (1-based) on every Gap in the input list.
+
+    Raises ValueError if a dependency cycle is detected, naming the involved section ids.
+    """
+    gap_ids: set[str] = {normalize_id(g.section_id) for g in gaps}
+    gap_by_norm: dict[str, Gap] = {normalize_id(g.section_id): g for g in gaps}
+
+    # Build adjacency: for each gap collect which of its depends_on are also gaps
+    for g in gaps:
+        leaf = leaves_by_id.get(normalize_id(g.section_id))
+        raw_deps = leaf.depends_on if leaf else []
+        g.depends_on_gaps = sorted(
+            d for d in raw_deps if normalize_id(d) in gap_ids
+        )
+
+    # in-degree and predecessor sets
+    in_degree: dict[str, int] = {nid: 0 for nid in gap_ids}
+    successors: dict[str, list[str]] = {nid: [] for nid in gap_ids}  # nid -> list of nids that depend on it
+
+    for g in gaps:
+        nid = normalize_id(g.section_id)
+        for dep in g.depends_on_gaps:
+            dnid = normalize_id(dep)
+            in_degree[nid] += 1
+            successors[dnid].append(nid)
+
+    def _sort_key(nid: str) -> tuple:
+        g = gap_by_norm[nid]
+        return (-g.weight, g.status != "missing", g.section_id)
+
+    queue: list[str] = sorted(
+        [nid for nid, deg in in_degree.items() if deg == 0],
+        key=_sort_key,
+    )
+
+    ordered: list[Gap] = []
+    while queue:
+        nid = queue.pop(0)
+        g = gap_by_norm[nid]
+        g.order = len(ordered) + 1
+        ordered.append(g)
+        # find newly-ready successors
+        newly_ready = []
+        for snid in successors[nid]:
+            in_degree[snid] -= 1
+            if in_degree[snid] == 0:
+                newly_ready.append(snid)
+        # insert newly-ready nodes in sorted order
+        queue = sorted(queue + newly_ready, key=_sort_key)
+
+    if len(ordered) != len(gaps):
+        cycle_ids = sorted(nid for nid, deg in in_degree.items() if deg > 0)
+        raise ValueError(f"Dependency cycle detected among CTD sections: {', '.join(cycle_ids)}")
+
+    # Transitive closure: blocks[nid] = all gaps (direct + transitive) that depend on nid
+    # Process in reverse topological order so ancestors inherit descendants' blocked sets.
+    blocks: dict[str, set[str]] = {normalize_id(g.section_id): set() for g in gaps}
+    for g in reversed(ordered):
+        nid = normalize_id(g.section_id)
+        for snid in successors[nid]:
+            blocks[nid].add(gap_by_norm[snid].section_id)
+            blocks[nid].update(blocks[snid])
+
+    for g in gaps:
+        nid = normalize_id(g.section_id)
+        g.blocks = sorted(blocks[nid])
+
+    return ordered
 
 
 # ------------------------------------------------------------------ the check
@@ -393,6 +482,8 @@ def check_outline(outline: Any, region: str | None = None, spec_path: Path = SPE
     severity_rank = {"critical": 0, "major": 1, "minor": 2}
     all_gaps.sort(key=lambda g: (severity_rank[g.severity], g.status != "missing", g.module, g.section_id))
 
+    ordered = order_gaps(all_gaps, leaves_by_id)
+
     return CTDCheckResult(
         product=str(meta.get("product") or meta.get("name") or "Unnamed product"),
         region=region,
@@ -404,6 +495,7 @@ def check_outline(outline: Any, region: str | None = None, spec_path: Path = SPE
         unmatched_entries=unmatched,
         matched_sections=len(matched),
         spec_version=str(spec_version),
+        remediation_order=[g.section_id for g in ordered],
     )
 
 
