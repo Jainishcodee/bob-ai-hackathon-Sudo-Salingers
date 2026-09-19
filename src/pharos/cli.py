@@ -292,6 +292,8 @@ def timeline(
             flags.append("● std")
         if adj and r.get("cum_signal_adj"):
             flags.append("◆ excl")
+        if r.get("stimulated_reporting"):
+            flags.append("📣")
         style = "bold red" if (y in (res.first_flag_year_cumulative, res.first_flag_year_adjusted)) else ("red" if flags else "dim")
         cells = [
             str(y), f"{int(r['a']):,} / {int(r['n_drug']):,}", f"{r['background_pct']:.2f}",
@@ -320,6 +322,11 @@ def timeline(
             inside = res.start_year <= a.year <= res.end_year
             console.print(f"  {'★' if inside else '·'} {a.date.isoformat()}  {a.label}" + (f"  [dim]({a.source})[/dim]" if a.source else ""),
                           style="" if inside else "dim")
+    sy = res.stimulated_years
+    if sy:
+        fa = res.first_action
+        console.print(f"[dim]📣 publicity-stimulated reporting flag: from {sy[0]} onward the reaction's share of this drug's reports is "
+                      f"≥ 2× its pre-{fa.year if fa else sy[0]} mean — likely driven by media or litigation, not new risk.[/dim]")
     console.print("[dim]Years = FDA receive date. Cumulative PRR in year Y uses only reports the FDA had by 31 Dec Y. "
                   "Watch the background column: another drug's reporting wave can inflate it and mask this signal.[/dim]")
     if json_out:

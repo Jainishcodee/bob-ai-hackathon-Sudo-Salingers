@@ -7,6 +7,14 @@ import pytest
 
 from pharos.signals.timeline import RegulatoryAction, load_regulatory_actions, signal_timeline
 
+# The FakeYearClient drug share: 1% (2004), 2% (2005), 4% (2006), 8% (2007)
+# With action at 2006-01-01:
+#   pre-action rows = 2004 (1%), 2005 (2%) → baseline = mean(1, 2) = 1.5
+#   threshold = 2 * 1.5 = 3.0
+#   2006: 4.0 >= 3.0 AND year >= 2006 → stimulated_reporting = True
+#   2007: 8.0 >= 3.0 AND year >= 2006 → stimulated_reporting = True
+#   2004, 2005: year < 2006 → False
+
 SAMPLES = Path(__file__).resolve().parent.parent / "data" / "samples"
 
 
@@ -219,3 +227,55 @@ def test_auto_with_nothing_above_threshold_applies_no_correction():
     assert res.exclude == [] and res.first_flag_year_adjusted is None
     assert "no product above the exclusion threshold" in res.headline()
     assert "cum_prr_adj" not in res.table.columns
+
+
+# ------------------------------------------------------------------ publicity-spike flag
+
+
+def test_stimulated_reporting_flagged_after_action():
+    # action = 2006; baseline = mean(share 2004=1%, 2005=2%) = 1.5%; threshold = 3.0%
+    # 2006: 4% >= 3.0% → True ; 2007: 8% >= 3.0% → True ; 2004,2005 → False
+    action = RegulatoryAction(date=date(2006, 1, 1), label="Warning", source="test")
+    res = signal_timeline("drug", "rx", client=FakeYearClient(), start_year=2004, end_year=2007, actions=[action])
+    assert res.stimulated_years == [2006, 2007]
+    df = res.table.set_index("year")
+    assert df.loc[2004, "stimulated_reporting"] is False or not df.loc[2004, "stimulated_reporting"]
+    assert df.loc[2005, "stimulated_reporting"] is False or not df.loc[2005, "stimulated_reporting"]
+    assert df.loc[2006, "stimulated_reporting"] is True or df.loc[2006, "stimulated_reporting"]
+    assert df.loc[2007, "stimulated_reporting"] is True or df.loc[2007, "stimulated_reporting"]
+    assert "publicity" in res.headline()
+
+
+def test_stimulated_no_actions_gives_empty_list():
+    # actions=[] → no baseline possible → all False
+    res = signal_timeline("drug", "rx", client=FakeYearClient(), start_year=2004, end_year=2007, actions=[])
+    assert res.stimulated_years == []
+    assert "publicity" not in res.headline()
+
+
+def test_stimulated_action_before_any_data_gives_empty_list():
+    # action in 2004 (= first year) → no rows before the action → no baseline → all False
+    action = RegulatoryAction(date=date(2004, 1, 1), label="Early action", source="test")
+    res = signal_timeline("drug", "rx", client=FakeYearClient(), start_year=2004, end_year=2007, actions=[action])
+    assert res.stimulated_years == []
+
+
+def test_stimulated_flat_share_never_flagged():
+    # share is 1% every year; with an action in 2006, baseline = mean(1%, ...) = 1%, threshold = 2%
+    # all post-action shares = 1% < 2% → never flagged
+    class FlatShare(FakeYearClient):
+        share = {2004: 0.01, 2005: 0.01, 2006: 0.01, 2007: 0.01}
+
+    action = RegulatoryAction(date=date(2006, 1, 1), label="Warning", source="test")
+    res = signal_timeline("drug", "rx", client=FlatShare(), start_year=2004, end_year=2007, actions=[action])
+    assert res.stimulated_years == []
+
+
+def test_stimulated_as_dict_contains_years_and_note():
+    action = RegulatoryAction(date=date(2006, 1, 1), label="Warning", source="test")
+    res = signal_timeline("drug", "rx", client=FakeYearClient(), start_year=2004, end_year=2007, actions=[action])
+    d = res.as_dict()
+    assert d["stimulated_reporting_years"] == [2006, 2007]
+    assert "convention" in d["stimulated_reporting_note"]
+    assert "stimulated_reporting" in d["rows"][0]
+    assert "share_vs_baseline" in d["rows"][0]

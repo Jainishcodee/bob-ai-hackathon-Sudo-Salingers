@@ -27,7 +27,7 @@ FDA's FAERS database holds **20M+ adverse-event reports** and grows by over a mi
 
 Pharos is a two-mode evidence engine with IBM Bob as its reasoning layer.
 
-**Mode 1 — Signal Detection.** For any drug, Pharos queries openFDA live, builds the 2×2 contingency table for every reaction reported with it, and computes the statistics regulators actually use — **PRR, ROR with 95% CI, Yates chi-square, Evans (2001) criteria** — then ranks clinical signals, filters administrative noise, and clusters them by organ system. Run it on Vioxx and myocardial infarction comes back at **n = 17,981, PRR 52**.
+**Mode 1 — Signal Detection.** For any drug, Pharos queries openFDA live, builds the 2×2 contingency table for every reaction reported with it, and computes the statistics regulators actually use — **PRR, ROR with 95% CI, Yates chi-square, Evans (2001) criteria, WHO-UMC IC/IC025** — then ranks clinical signals, filters administrative noise, clusters them by organ system, and flags years where publicity or litigation is likely inflating reports. Run it on Vioxx and myocardial infarction comes back at **n = 17,981, PRR 52**.
 
 **Mode 2 — Submission Readiness.** Pharos encodes ICH M4 CTD Modules 1–5 as a **69-section machine-readable checklist** with required flags and criticality weights, matches a dossier outline against it, scores each module, and emits a ranked gap report (critical / major / minor, each with *why it matters*).
 
@@ -37,13 +37,13 @@ Pharos is a two-mode evidence engine with IBM Bob as its reasoning layer.
 
 ## ✨ Key Features
 
-- **Live disproportionality analysis on real data:** PRR, ROR (95% CI), chi-square (Yates), Evans 2001 signal criteria, Haldane zero-cell correction — unit-tested against hand-computed reference values. `src/pharos/signals/stats.py`
-- **Signal emergence timeline with masking detection and correction** — the part we'd defend hardest. Rebuilds the 2×2 table year by year (FDA receive date) to show *when* a signal first met the criteria versus the real regulatory milestones. It also lists which drug dominated the reaction's reports each year — and that exposes **masking**: Vioxx litigation reports were **69–73% of all myocardial-infarction reports in FAERS in 2005–06**, inflating the background every other drug was compared against. Standard PRR flags Avandia × MI in **2008**, a year *after* the Nissen meta-analysis; exclude Vioxx from the comparator and Pharos flags it in **2006, a year *before*** — detection brought forward two years, on real data, by a literature-standard correction (Maignen et al.). The masker is chosen **by rule** (`-x auto`: any product ≥ 25% of the reaction's reports) and applied **prospectively, with no look-ahead** — a product is excluded only from the first year it crossed the threshold. Same method, unmasked: Meridia × stroke flagged 2004 (regulators acted 2009–10), Darvon × cardiac arrest flagged 2005 (acted 2009–10). `src/pharos/signals/timeline.py`
+- **Live disproportionality analysis on real data:** PRR, ROR (95% CI), chi-square (Yates), Evans 2001 signal criteria, Haldane zero-cell correction, **WHO-UMC IC/IC025** (Norén 2013 shrinkage form) — all unit-tested against hand-computed reference values. When Evans and WHO rules disagree (`methods_agree=False`) it almost always signals a small, unreliable case count; the disagreement count is surfaced in every scan output. `src/pharos/signals/stats.py`
+- **Signal emergence timeline with masking detection, correction, and publicity-spike detection** — the part we'd defend hardest. Rebuilds the 2×2 table year by year (FDA receive date) to show *when* a signal first met the criteria versus the real regulatory milestones. It also lists which drug dominated the reaction's reports each year — and that exposes **masking**: Vioxx litigation reports were **69–73% of all myocardial-infarction reports in FAERS in 2005–06**, inflating the background every other drug was compared against. Standard PRR flags Avandia × MI in **2008**, a year *after* the Nissen meta-analysis; exclude Vioxx from the comparator and Pharos flags it in **2006, a year *before*** — detection brought forward two years. The masker is chosen **by rule** (`-x auto`, prospective, no look-ahead). **New:** a **publicity-spike flag** marks years where the reaction's share of the drug's own reports jumps to ≥ 2× its pre-action mean — distinguishing media-driven reporting from genuine risk increase. The Avandia chart shows MI share climbing from ~5% (2007) to 22% (2008) to 51% (2010) after FDA acted — shaded and captioned in the dashboard. `src/pharos/signals/timeline.py`
 - **Hidden-signal finder — *what is the standard screen missing?*** For any drug and any as-of year, Pharos checks every reaction for a dominant product, removes it (and its brand/generic aliases) from the comparator by a fixed rule, and recomputes. Real results: **Avandia as of end-2006** → standard screen shows 19 signals; Pharos finds **1 more that was hidden** — myocardial infarction, PRR 0.77 → 2.18 — and 5 understated, including congestive heart failure (Avandia's actual boxed warning) 5.5 → 8.6. **Meridia as of 2006** → stroke (1.67 → 4.40) and heart attack (1.06 → 2.95) both hidden behind Vioxx; Meridia was withdrawn in 2010 for exactly those. No analyst chooses anything. `src/pharos/signals/masking.py`
 - **Known or new? — FDA label check.** Every signal is matched against the drug's current FDA-approved label (openFDA `/drug/label`): boxed warning › warnings › adverse reactions › **not on the label**. Metformin: 15 clinical signals → 12 already labelled (lactic acidosis correctly located in the **boxed warning**) → 3 not found — those are the ones worth a reviewer's time. Withdrawn products correctly report "no current label". `src/pharos/signals/label.py`
 - **Retrospective validation on real withdrawals:** the demo set (Vioxx, Bextra, Avandia, Baycol, Meridia, Darvon + two controls) reproduces each drug's known safety signal from FAERS. `src/data/samples/demo_drugs.txt`
 - **ICH M4 CTD readiness checker:** weighted per-module completeness, ranked gaps with regulatory rationale, detection of collapsed parent sections ("4.2.3 Toxicology" listed instead of its seven sub-sections) and non-CTD entries; blank-outline generator for regulatory teams. `src/pharos/ctd/`
-- **IBM Bob MCP server (9 tools):** `scan_signals`, `compute_prr`, `cluster_signals_by_organ_system`, `search_reports`, `find_hidden_signals`, `check_fda_label`, `signal_emergence_timeline`, `check_ctd_dossier`, `get_ctd_spec`, plus `signal_assessment` and `dossier_gap_memo` prompt templates. Bob can now say *"novel cardiac signal, first detectable in 2006, masked until 2008 by Vioxx reporting."* `src/mcp_server/server.py`
+- **IBM Bob MCP server (9 tools):** `scan_signals`, `compute_prr`, `cluster_signals_by_organ_system`, `search_reports`, `find_hidden_signals`, `check_fda_label`, `signal_emergence_timeline`, `check_ctd_dossier`, `get_ctd_spec`, plus `signal_assessment` and `dossier_gap_memo` prompt templates. Every tool now surfaces IC025 and stimulated-reporting fields with explicit guidance so Bob can say *"novel cardiac signal, first detectable in 2006, masked until 2008 by Vioxx reporting; post-2008 PRR increase is consistent with publicity-stimulated reporting, not new risk."* `src/mcp_server/server.py`
 - **Two front ends + resilience:** Streamlit dashboard and Typer CLI; administrative-term filter; curated MedDRA SOC clustering; on-disk openFDA cache with `PHAROS_OFFLINE=1` so the demo survives a dead network.
 
 ---
@@ -68,7 +68,7 @@ Pharos is a two-mode evidence engine with IBM Bob as its reasoning layer.
 │   ├── mcp_server/server.py      #   IBM Bob MCP server
 │   ├── app/streamlit_app.py      #   dashboard
 │   ├── data/samples/             #   demo drugs, sample dossier outlines
-│   └── tests/                    #   80 offline unit tests
+│   └── tests/                    #   103 offline unit tests
 ├── docs/
 │   ├── problem-statement.md
 │   ├── solution-overview.md
@@ -110,7 +110,7 @@ python -m pharos scan metformin --alias glucophage                        #     
 python -m pharos ctd-check data/samples/dossier_incomplete.yaml   # Mode 2: gap report
 streamlit run app/streamlit_app.py                                # dashboard → http://localhost:8501
 python -m mcp_server.server                                       # MCP server for IBM Bob (stdio)
-python -m pytest tests -q                                         # 80 tests, offline
+python -m pytest tests -q                                         # 103 tests, offline
 ```
 
 ---
@@ -147,4 +147,4 @@ python -m pytest tests -q                                         # 80 tests, of
 
 ---
 
-*Built for the IBM Bob AI Innovation Hackathon 2026 · Round 1 · 15 September 2026.*
+*Built for the IBM Bob AI Innovation Hackathon 2026 · Round 1 · 15 September 2026. Upgraded between rounds with WHO IC/IC025 scoring and publicity-spike flags.*

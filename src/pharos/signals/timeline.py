@@ -22,6 +22,13 @@ year Y only products that had already reached the alert share of the reaction's 
 year <= Y are excluded. Anything else would let knowledge of the future leak into a claim about
 what was detectable in the past.
 
+**Publicity-stimulated reporting flag:** separately from masking, a row is marked
+``stimulated_reporting=True`` when the reaction's *share of the drug's own reports* jumps to
+≥ 2× its pre-action mean once a regulatory action has occurred. This is a convention (not a
+published standard) for flagging years where media and litigation are likely driving reports
+rather than a genuine new risk. The flag is computed entirely from data already fetched; it
+adds zero API calls.
+
 Analogy: the "first seen" field in error monitoring (Sentry), or a control chart in
 manufacturing SPC — it turns a snapshot into a detection history.
 """
@@ -83,6 +90,13 @@ class TimelineResult:
     @property
     def first_action(self) -> RegulatoryAction | None:
         return min(self.actions, key=lambda a: a.date) if self.actions else None
+
+    @property
+    def stimulated_years(self) -> list[int]:
+        """Years flagged as likely publicity-stimulated (share >= 2× pre-action baseline)."""
+        if "stimulated_reporting" not in self.table.columns or self.table.empty:
+            return []
+        return [int(y) for y in self.table.loc[self.table["stimulated_reporting"], "year"]]
 
     def _lead(self, flag_year: int | None) -> int | None:
         if flag_year is None or self.first_action is None:
@@ -159,6 +173,14 @@ class TimelineResult:
                     s += f" Masking correction brings detection forward by {gained} year{'s' if gained != 1 else ''}."
         elif self.auto_excluded:
             s += " The automatic rule found no product above the exclusion threshold, so no correction was applied."
+
+        sy = self.stimulated_years
+        if sy:
+            fa = self.first_action
+            action_year = fa.year if fa else sy[0]
+            s += (f" From {sy[0]} onward this reaction's share of the drug's reports is at least double its"
+                  f" pre-{action_year} level — consistent with publicity-stimulated reporting;"
+                  f" treat later PRRs with caution.")
         return s
 
     def as_dict(self) -> dict:
@@ -179,6 +201,13 @@ class TimelineResult:
             "lead_time_years_vs_first_action": self.lead_time_years,
             "lead_time_years_vs_first_action_masking_corrected": self.lead_time_years_adjusted,
             "worst_masking_year": self.max_masking,
+            "stimulated_reporting_years": self.stimulated_years,
+            "stimulated_reporting_note": (
+                "A year is flagged 'stimulated_reporting' when it falls on or after the first regulatory action "
+                "AND the reaction's share of the drug's reports is >= 2× the mean share in pre-action years. "
+                "This is a convention (not a published standard) for identifying years likely driven by publicity "
+                "or litigation rather than new pharmacological risk. Treat PRRs in these years with caution."
+            ),
             "headline": self.headline(),
             "rows": self.table.to_dict(orient="records"),
             "generated_at": self.generated_at,
@@ -414,6 +443,35 @@ def signal_timeline(
                 }
             )
 
+    # ---------------------------------------------------------------- phase 3: publicity-spike flag
+    # Resolve actions now so the flag can reference them before building the result.
+    resolved_actions: list[RegulatoryAction] = actions if actions is not None else actions_for(names)
+    first_act = min(resolved_actions, key=lambda a: a.date) if resolved_actions else None
+
+    if first_act is not None and rows:
+        pre_rows = [r for r in rows if r["year"] < first_act.year]
+        if pre_rows:
+            baseline = sum(r["share_of_drug_reports_pct"] for r in pre_rows) / len(pre_rows)
+            threshold = 2.0 * baseline
+            for r in rows:
+                stimulated = (
+                    baseline > 0
+                    and r["year"] >= first_act.year
+                    and r["share_of_drug_reports_pct"] >= threshold
+                )
+                r["stimulated_reporting"] = stimulated
+                r["share_vs_baseline"] = (r["share_of_drug_reports_pct"] / baseline) if baseline > 0 else 0.0
+        else:
+            # No rows before the first action — can't establish a baseline.
+            for r in rows:
+                r["stimulated_reporting"] = False
+                r["share_vs_baseline"] = 0.0
+    else:
+        # No regulatory actions recorded — flag is undefined; default to False.
+        for r in rows:
+            r["stimulated_reporting"] = False
+            r["share_vs_baseline"] = 0.0
+
     df = pd.DataFrame(rows)
     return TimelineResult(
         drug=names[0].strip().upper(),
@@ -429,7 +487,7 @@ def signal_timeline(
         auto_excluded=auto,
         exclusion_schedule=schedule,
         first_flag_year_adjusted=first_adj,
-        actions=actions if actions is not None else actions_for(names),
+        actions=resolved_actions,
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         source=client.last_source,
     )
