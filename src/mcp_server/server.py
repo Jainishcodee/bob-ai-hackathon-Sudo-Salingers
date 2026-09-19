@@ -277,6 +277,12 @@ def signal_emergence_timeline(
     Example: rosiglitazone × MYOCARDIAL INFARCTION is masked by Vioxx litigation reports (~70% of all MI
     reports in 2005–06); standard first detection 2008, corrected 2006 — a year before the Nissen meta-analysis.
 
+    PUBLICITY-STIMULATED REPORTING: each row also carries 'stimulated_reporting' (bool) and
+    'share_vs_baseline' (ratio). A year is flagged when it falls on or after the first regulatory action
+    AND the reaction's share of the drug's own reports is >= 2× its pre-action mean. The result includes
+    'stimulated_reporting_years'. When present, note that PRRs in those years may reflect media/litigation
+    reporting waves rather than new pharmacological risk — state this caveat explicitly.
+
     Args:
         drug / aliases / reaction: as in compute_prr.
         exclude_drugs: "auto" (recommended) and/or comma-separated drug names to remove from the background.

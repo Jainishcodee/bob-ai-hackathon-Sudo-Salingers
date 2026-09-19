@@ -162,7 +162,9 @@ with st.sidebar:
 
 st.title("🔦 Pharos")
 st.markdown(
-    "**Mode 1 · Signal Detection** — disproportionality analysis (PRR / ROR / χ²) over 20M+ real FDA adverse-event reports.  \n"
+    "**Mode 1 · Signal Detection** — disproportionality analysis (PRR / ROR / χ² / IC025) over 20M+ real FDA adverse-event reports. "
+    "Signals checked against the current FDA label, clustered by organ system, masked signals uncovered, "
+    "year-by-year emergence timeline with publicity-spike detection.  \n"
     "**Mode 2 · Submission Readiness** — audit a drug-approval dossier outline against the ICH M4 Common Technical Document."
 )
 
@@ -464,10 +466,26 @@ with tab1:
                             fig3.add_vline(x=a["year"] + 0.02, line_color=INK_MUTED, line_width=1)
                             fig3.add_annotation(x=a["year"], y=1, yref="paper", text=a["label"][:48] + ("…" if len(a["label"]) > 48 else ""),
                                                 showarrow=False, textangle=-90, xanchor="right", yanchor="top", font=dict(size=10, color=INK_2))
+                    stim_years = tl.get("stimulated_reporting_years", [])
+                    if stim_years:
+                        fig3.add_vrect(
+                            x0=stim_years[0] - 0.5, x1=stim_years[-1] + 0.5,
+                            fillcolor="#898781", opacity=0.10, line_width=0,
+                            annotation_text="publicity-stimulated reporting",
+                            annotation_position="top right",
+                        )
                     fig3.update_layout(title=f"{tl['drug']} × {tl['reaction'].title()} — signal emergence", yaxis_type="log", yaxis_title="PRR (log)",
                                        xaxis=dict(dtick=1, title="year (FDA receive date)"), height=460, legend=dict(orientation="h", y=-0.2),
                                        margin=dict(l=10, r=10, t=60, b=10))
                     st.plotly_chart(style_fig(fig3), width="stretch")
+                    if stim_years:
+                        fa_year = tl["regulatory_actions"][0]["year"] if tl.get("regulatory_actions") else stim_years[0]
+                        st.caption(
+                            f"📣 **Publicity-stimulated reporting ({stim_years[0]}–{stim_years[-1]}):** from {stim_years[0]} "
+                            f"onward the reaction's share of this drug's reports is ≥ 2× its pre-{fa_year} mean — "
+                            "shaded band. These years likely reflect media or litigation reporting, not new pharmacological risk. "
+                            "Treat PRRs in the shaded region with caution."
+                        )
                     with st.expander("Year-by-year table"):
                         show_cols = ["year", "n_drug", "a", "share_of_drug_reports_pct", "background_pct", "prr_year", "cum_a", "cum_prr", "cum_chi2", "cum_signal"]
                         renames = {"n_drug": "drug reports", "a": "drug × reaction", "share_of_drug_reports_pct": "% of drug reports",
@@ -479,6 +497,9 @@ with tab1:
                         if "top_contributor" in tdf:
                             show_cols += ["top_contributor", "top_contributor_share_pct"]
                             renames.update({"top_contributor": "top drug in reaction's reports", "top_contributor_share_pct": "its share %"})
+                        if "stimulated_reporting" in tdf.columns:
+                            show_cols += ["stimulated_reporting", "share_vs_baseline"]
+                            renames.update({"stimulated_reporting": "📣 stimulated?", "share_vs_baseline": "share / baseline"})
                         st.dataframe(tdf[show_cols].rename(columns=renames).round(2), width="stretch", hide_index=True)
                     st.caption("Late spikes usually reflect publicity- or litigation-stimulated reporting rather than new risk — a known bias Bob is instructed to name. "
                                "The 'top drug' column shows who dominates the reaction's reports each year: that is the masking check.")

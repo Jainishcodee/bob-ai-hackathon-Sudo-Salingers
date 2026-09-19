@@ -9,32 +9,32 @@ graph TD
         RA[Regulatory affairs lead]
     end
 
-    PV -->|chat prompt| BOB[IBM Bob<br/>reasoning layer]
+    PV -->|chat prompt| BOB[IBM Bob\nreasoning layer]
     RA -->|chat prompt| BOB
-    PV -->|browser| UI[Streamlit dashboard<br/>src/app/streamlit_app.py]
+    PV -->|browser| UI[Streamlit dashboard\nsrc/app/streamlit_app.py]
     RA -->|browser| UI
-    PV -->|terminal| CLI[pharos CLI<br/>src/pharos/cli.py]
+    PV -->|terminal| CLI[pharos CLI\nsrc/pharos/cli.py]
 
-    BOB -->|MCP · stdio| MCP[Pharos MCP server<br/>src/mcp_server/server.py<br/>9 tools · 2 prompts · 1 resource]
+    BOB -->|MCP · stdio| MCP[Pharos MCP server\nsrc/mcp_server/server.py\n9 tools · 2 prompts · 1 resource]
 
-    MCP --> ENG[pharos engine<br/>evidence layer]
-    UI --> ENG
+    MCP --> ENG[pharos engine\nevidence layer]
+    UI  --> ENG
     CLI --> ENG
 
-    ENG --> SIG[signals/<br/>stats.py · detector.py · cluster.py<br/>timeline.py · masking.py · label.py<br/>PRR · ROR · χ² · Evans · SOC clustering<br/>emergence timeline · hidden-signal finder · FDA label check]
-    ENG --> CTD[ctd/<br/>checker.py · report.py<br/>weighted scoring · ranked gaps]
+    ENG --> SIG[signals/\nstats.py · detector.py · cluster.py\ntimeline.py · masking.py · label.py\nPRR · ROR · χ² · IC · IC025 · Evans · WHO rules\nSOC clustering · emergence timeline\nhidden-signal finder · FDA label check\npublicity-spike flag]
+    ENG --> CTD[ctd/\nchecker.py · report.py\nweighted scoring · ranked gaps\ndependency-ordered remediation]
 
-    SIG --> CLIENT[faers/client.py<br/>openFDA client<br/>disk cache · offline mode · retry]
-    CLIENT -->|HTTPS · count & search| FDA[(openFDA FAERS API<br/>20.7M adverse-event reports)]
-    CLIENT -->|HTTPS| LBL[(openFDA drug label API<br/>current FDA-approved labels)]
-    CLIENT <--> CACHE[(faers/cache/*.json<br/>committed demo snapshot)]
+    SIG --> CLIENT[faers/client.py\nopenFDA client\ndisk cache · offline mode · retry]
+    CLIENT -->|HTTPS · count & search| FDA[(openFDA FAERS API\n20.7M adverse-event reports)]
+    CLIENT -->|HTTPS| LBL[(openFDA drug label API\ncurrent FDA-approved labels)]
+    CLIENT <--> CACHE[(faers/cache/*.json\ncommitted demo snapshot)]
 
-    CTD --> SPEC[(ctd/data/ich_m4_ctd.yaml<br/>ICH M4 · 69 leaf sections<br/>required · weight · note)]
-    RA -->|dossier outline<br/>YAML / JSON| CTD
+    CTD --> SPEC[(ctd/data/ich_m4_ctd.yaml\nICH M4 · 69 leaf sections\nrequired · weight · note)]
+    RA -->|dossier outline\nYAML / JSON| CTD
 
-    style BOB fill:#0f62fe,color:#fff,stroke:#0f62fe
-    style MCP fill:#e8f0fe,stroke:#0f62fe
-    style FDA fill:#fdf2e9,stroke:#e67e22
+    style BOB  fill:#0f62fe,color:#fff,stroke:#0f62fe
+    style MCP  fill:#e8f0fe,stroke:#0f62fe
+    style FDA  fill:#fdf2e9,stroke:#e67e22
     style SPEC fill:#fdf2e9,stroke:#e67e22
 ```
 
@@ -42,70 +42,74 @@ graph TD
 
 | Component | Technology | Responsibility |
 |---|---|---|
-| **IBM Bob** | IBM Bob IDE / CLI, MCP client | The analyst. Calls Pharos tools, verifies signals, reads cases, writes the signal-assessment memo or dossier remediation plan. Also used in Ask mode to review the statistics module. |
-| **Pharos MCP server** | Python, `mcp` 2.x (`MCPServer`), stdio transport | Exposes `scan_signals`, `compute_prr`, `cluster_signals_by_organ_system`, `search_reports`, `find_hidden_signals`, `check_fda_label`, `signal_emergence_timeline`, `check_ctd_dossier`, `get_ctd_spec`; prompt templates `signal_assessment`, `dossier_gap_memo`; resource `pharos://about`. Server instructions constrain Bob to state n / PRR / CI / χ² and avoid causal language. |
-| **Streamlit dashboard** | Streamlit, Plotly, pandas | Two tabs. Signal Detection: drug input, criteria sliders, PRR bar chart with CIs, organ-system chart, table, 2×2 drill-down, CSV/JSON export, Bob prompt. Submission Readiness: sample/upload outline, module completeness bars, ranked gaps, warnings, Markdown report download, Bob prompt. |
-| **CLI** | Typer, Rich | `scan`, `prr`, `ctd-check`, `ctd-template`, `build-cache`, `version`. Rich tables; `--json` for pipelines. |
-| **signals/stats.py** | pure Python | `ContingencyTable`, PRR/ROR + 95% CI, Yates χ², Haldane correction, `SignalCriteria`, `evaluate()`. |
-| **signals/detector.py** | pandas | `scan_drug()` — one drug × all its reactions; administrative-term filter; ranking. `compute_pair()` — exact AND query for one pair. |
+| **IBM Bob** | IBM Bob IDE / CLI, MCP client | The analyst. Calls Pharos tools, verifies signals with exact queries, reads case narratives, writes the signal-assessment memo or dossier remediation plan. Uses Ask mode to review the statistics module without making changes. |
+| **Pharos MCP server** | Python, `mcp` 2.x (`MCPServer`), stdio transport | Exposes `scan_signals`, `compute_prr`, `cluster_signals_by_organ_system`, `search_reports`, `find_hidden_signals`, `check_fda_label`, `signal_emergence_timeline`, `check_ctd_dossier`, `get_ctd_spec`; prompt templates `signal_assessment`, `dossier_gap_memo`; resource `pharos://about`. Server instructions require Bob to state n / PRR / CI / χ² and avoid causal language; IC025 and stimulated-reporting fields are now included in every scan and timeline row with explicit interpretation guidance. |
+| **Streamlit dashboard** | Streamlit, Plotly, pandas | Two tabs. Signal Detection: drug input, criteria sliders, PRR bar chart with CIs, organ-system chart, "All evaluated reactions" table (includes **IC025** column and methods-disagree caption), 2×2 drill-down, hidden-signal finder, timeline (with **publicity-spike shading** and stimulated-year caption), CSV/JSON export, Bob prompt. Submission Readiness: sample/upload outline, module completeness bars, ranked gaps, dependency-ordered remediation table, warnings, Markdown report download, Bob prompt. |
+| **CLI** | Typer, Rich | `scan`, `prr` (now shows IC / IC025 / WHO verdict), `timeline` (📣 flag for stimulated years), `hidden`, `ctd-check`, `ctd-template`, `build-cache`, `version`. Rich tables; `--json` for pipelines. |
+| **signals/stats.py** | pure Python | `ContingencyTable`, PRR/ROR + 95% CI, Yates χ², Haldane correction, `ic()`, `ic025()` (Norén 2013 shrinkage form), `SignalCriteria`, `evaluate()` → `DisproportionalityResult` (adds `ic`, `ic025`, `is_signal_ic`, `methods_agree`). Every metric hand-tested in `tests/test_stats.py`. |
+| **signals/detector.py** | pandas | `scan_drug()` — one drug × all its reactions; IC columns included in every row; `n_methods_disagree` in `as_dict()`. `compute_pair()` — exact AND query for one pair, IC fields flow through automatically. |
 | **signals/cluster.py** | pandas | MedDRA SOC assignment (curated ~300-term map + keyword rules, labelled `heuristic`) and per-SOC aggregation. |
-| **signals/timeline.py** | pandas, PyYAML | `signal_timeline()` — per-year 2×2 by FDA receive date; yearly + cumulative PRR; first-flag year; optional `exclude` (masking correction: removes named drugs from the comparator); `detect_masking` (top contributing drugs per year, alert ≥ 25%); lead time vs `data/samples/regulatory_actions.yaml`. |
-| **faers/client.py** | httpx | openFDA query builder (multi-name OR across verbatim + harmonised name fields), SHA-1 keyed JSON disk cache, `PHAROS_OFFLINE`, 404-as-zero, 429/5xx backoff, keyless 500-term count cap. |
-| **ctd/checker.py** | PyYAML, difflib | Load spec (region variant), parse outline (dict/list/bare strings), id normalisation + fuzzy title match, weighted per-module score, ranked `Gap`s, warnings, `outline_template()`. |
-| **ctd/report.py** | — | Markdown gap report. |
-| **ctd/data/ich_m4_ctd.yaml** | YAML | The ICH M4 checklist: Modules 1 (US/EU variants), 2, 3, 4, 5; 69 leaves; `required`, `weight`, `note`. |
-| **tests/** | pytest | 80 tests. Statistics against a hand-computed 2×2; detector, timeline (incl. the no-look-ahead rule), hidden-signal finder and label matcher against fake clients (no network); checker against generated and sample outlines; Streamlit `AppTest` smoke test that clicks Scan. |
+| **signals/timeline.py** | pandas, PyYAML | `signal_timeline()` — per-year 2×2 by FDA receive date; yearly + cumulative PRR; optional masking correction (`exclude` / `auto`); `detect_masking` (top contributing drugs per year, alert ≥ 25%); **publicity-spike flag**: `stimulated_reporting` and `share_vs_baseline` on every row, `TimelineResult.stimulated_years` property, caution sentence in `headline()`; lead time vs `regulatory_actions.yaml`. |
+| **signals/masking.py** | pandas | `find_hidden_signals()` — per-reaction background decomposition, fixed-rule masker detection, corrected PRR; brand/generic alias expansion. |
+| **signals/label.py** | — | Fetches current US label (SPL) from openFDA; matches each signal against boxed warning, W&P, adverse reactions; British→American spelling and lay synonyms. |
+| **faers/client.py** | httpx | openFDA query builder (multi-name OR), SHA-1 keyed JSON disk cache, `PHAROS_OFFLINE`, 404-as-zero, 429/5xx backoff, keyless 500-term count cap. |
+| **ctd/checker.py** | PyYAML, difflib | Load spec (region variant), parse outline, id normalisation + fuzzy title match, weighted per-module score, ranked `Gap`s with `blocks` field, Kahn-sorted `remediation_order`, warnings. |
+| **ctd/report.py** | — | Markdown gap report, dependency-ordered remediation section. |
+| **ctd/data/ich_m4_ctd.yaml** | YAML | ICH M4 checklist: Modules 1 (US/EU variants), 2, 3, 4, 5; 69 leaves; `required`, `weight`, `note`, `depends_on`. |
+| **tests/** | pytest | **103 tests**, all offline. Statistics against hand-computed 2×2 (including IC/IC025 with hand-derived expected values); detector, timeline (no-look-ahead, stimulated-reporting), hidden-signal finder, label matcher, CTD checker — all against fake clients/data, no network. |
 
 ## Data flow — Mode 1 (signal scan)
 
 1. User (or Bob) supplies drug name + aliases, e.g. `rofecoxib`, `vioxx`.
-2. `OpenFDAClient.drug_expression()` builds `medicinalproduct:"ROFECOXIB" + openfda.generic_name:"ROFECOXIB" + … + medicinalproduct:"VIOXX" + …` (OR).
-3. Four requests: **N** (all reports), **drug total** (a+b), **drug's reaction counts** (a per reaction, up to 500), **background reaction counts** (a+c per reaction, top 500 FAERS-wide). Rare reactions outside the top-500 background fall back to one request each (capped).
-4. For each reaction: `ContingencyTable.from_counts(a, drug_total, event_total, N)` → `evaluate()` → PRR, CI, ROR, CI, χ², signal flag, tier.
-5. Rows are ranked (clinical signals → statistical-only → non-signals, then by PRR); `cluster_signals()` groups clinical signals by SOC.
-6. Output: `ScanResult` → Rich table (CLI) / Plotly + DataFrame (UI) / JSON (MCP → Bob).
-7. Bob, if driving: calls `compute_prr` (exact `(drug) AND reaction` query) for the top signals, `search_reports` for narratives, then writes the memo.
+2. `OpenFDAClient.drug_expression()` builds a multi-field OR query across verbatim and harmonised name fields.
+3. Four requests: **N** (all reports), **drug total**, **drug's reaction counts** (up to 500), **background reaction counts** (top-500 FAERS-wide). Rare reactions fall back to one request each (capped at `max_extra_lookups`).
+4. For each reaction: `ContingencyTable.from_counts(a, drug_total, event_total, N)` → `evaluate()` → PRR, CI, ROR, CI, χ², Evans signal flag, tier, **IC**, **IC025**, **is_signal_ic** (WHO rule), **methods_agree**.
+5. Rows ranked (clinical signals → statistical-only → non-signals, by PRR); `cluster_signals()` groups by SOC; `n_methods_disagree` summarised in `as_dict()`.
+6. Output: `ScanResult` → Rich table (CLI) / Plotly + DataFrame with IC025 column (UI) / JSON (MCP → Bob).
+7. Bob: calls `compute_prr` for exact verification, `search_reports` for narratives, then writes the memo noting IC agreement/disagreement where relevant.
 
-Every response is cached under `src/pharos/faers/cache/<sha1(url)>.json`; with `PHAROS_OFFLINE=1` only the cache is consulted.
+Every response cached under `src/pharos/faers/cache/<sha1(url)>.json`; `PHAROS_OFFLINE=1` uses only the cache.
 
 ## Data flow — emergence timeline
 
-1. For each year *Y* in range: `receivedate:[Y0101 TO Y1231]` is ANDed onto four counts — all reports, drug, reaction, drug∧reaction — giving that year's 2×2. Running sums give the cumulative 2×2 (what was knowable by 31 Dec *Y*).
-2. If `exclude` is set: two more counts (excluded drugs' reports; excluded drugs' reaction reports) are subtracted from the comparator totals → masking-corrected yearly and cumulative series.
-3. If `detect_masking`: one `count=patient.drug.medicinalproduct.exact` over the reaction∧year reports lists the top contributing drugs and their share; ≥ 25% raises `masking_alert`.
-4. First-flag years (standard / corrected) are compared with `regulatory_actions.yaml` → lead times; `headline()` writes the dated sentence Bob quotes.
+1. For each year *Y*: `receivedate:[Y0101 TO Y1231]` ANDed onto four counts → that year's 2×2. Running sums give the cumulative 2×2.
+2. If `exclude`: two subtracted counts → masking-corrected yearly and cumulative series.
+3. If `detect_masking`: top contributing drugs by share; ≥ 25% raises `masking_alert`.
+4. **Publicity-spike flag (phase 3, zero extra API calls):** baseline = mean `share_of_drug_reports_pct` for rows before the first regulatory action. A row is `stimulated_reporting=True` when year ≥ action year **and** share ≥ 2 × baseline. This distinguishes media/litigation-driven reporting from genuine risk increase — convention, not a published standard, and labelled as such everywhere.
+5. First-flag years (standard / corrected) compared with `regulatory_actions.yaml` → lead times; `headline()` includes both the masking result and the stimulated-reporting caution.
 
 ## Data flow — Mode 2 (dossier check)
 
-1. Outline (YAML/JSON) → `parse_outline()` → `OutlineEntry(id, title, status, pages)` list + metadata (`product`, `region`).
-2. `load_spec(region)` → five `SpecModule`s; leaves indexed by normalised id and by normalised title.
-3. Each entry matched: exact id → leaf; id of a **parent** → warning ("expand into sub-sections"); else fuzzy title ≥ 0.86 → leaf + confirm-warning; else → unrecognised.
-4. Per module: `score = Σ weight × status_score / Σ weight` over required leaves; `Gap` for each required leaf missing or draft, with severity from weight and the spec's `note`.
-5. `CTDCheckResult` → Rich (CLI) / Plotly + table (UI) / JSON + Markdown report (MCP → Bob writes the remediation memo).
+1. Outline (YAML/JSON) → `parse_outline()` → `OutlineEntry` list + metadata.
+2. `load_spec(region)` → five `SpecModule`s; leaves indexed by normalised id and title.
+3. Each entry matched: exact id → leaf; parent id → warning; fuzzy title ≥ 0.86 → leaf + confirm-warning; else → unrecognised.
+4. Per module: `score = Σ weight × status_score / Σ weight` over required leaves; `Gap` for each missing/draft leaf with severity, `depends_on`, and `blocks`.
+5. `order_gaps()` (Kahn topological sort) → `remediation_order`: a dependency-respecting fix-first list.
+6. `CTDCheckResult` → Rich (CLI) / Plotly + ranked-gap table + remediation table (UI) / JSON + Markdown (MCP → Bob writes the remediation memo in dependency order).
 
 ## Security and operational notes
 
-- **No credentials required.** openFDA is public. An optional `OPENFDA_API_KEY` (free) raises limits; it is read from `.env`, which is git-ignored. `.env.example` documents every variable.
-- **No PHI.** FAERS reports are de-identified public records; Pharos stores only aggregate counts and trimmed report fields in its cache.
-- **Deterministic core.** Everything under `pharos/` is pure functions over data; the only non-determinism is Bob's prose.
-- **Rate limits.** Keyless: 240 req/min, 1,000/day per IP, count `limit ≤ 500`. Client backs off on 429; cache means repeat queries are free.
-- **Scalability path.** Swap `faers/client.py` for a loader over quarterly FAERS files or a Postgres mirror; the `ContingencyTable` interface stays. Add EBGM/BCPNN (Bayesian shrinkage) alongside PRR in `stats.py`. Replace the curated SOC map with licensed MedDRA when available.
+- **No credentials required.** openFDA is public. An optional `OPENFDA_API_KEY` lifts rate limits; read from `.env` (git-ignored). `.env.example` is the template.
+- **No PHI.** FAERS reports are de-identified public records; Pharos stores only aggregate counts and trimmed report fields.
+- **Deterministic core.** Everything under `pharos/` is pure functions over data; no LLM calls, no randomness. The only non-determinism is Bob's prose.
+- **Rate limits.** Keyless: 240 req/min, 1,000/day per IP, count `limit ≤ 500`. Client backs off on 429; cache makes repeat queries free.
+- **Scalability path.** Swap `faers/client.py` for a FAERS quarterly-file loader or Postgres mirror; the `ContingencyTable` interface stays unchanged. IC is already implemented; EBGM/BCPNN (Bayesian shrinkage) slot in alongside it in `stats.py` following the same pattern (`add-signal-metric` skill documents the exact steps).
 
 ## Repository map
 
 ```
-src/pharos/faers/client.py      openFDA access + cache
-src/pharos/signals/stats.py     2×2 statistics (tested)
-src/pharos/signals/detector.py  scan + pair analysis
-src/pharos/signals/cluster.py   SOC clustering
-src/pharos/signals/timeline.py  emergence timeline + masking
-src/pharos/signals/masking.py   hidden-signal finder, alias groups
-src/pharos/signals/label.py     FDA label check (known vs new)
-src/pharos/ctd/checker.py       CTD matching + scoring
-src/pharos/ctd/report.py        Markdown report
+src/pharos/faers/client.py        openFDA access + cache
+src/pharos/signals/stats.py       2×2 statistics — PRR · ROR · χ² · IC · IC025 (tested)
+src/pharos/signals/detector.py    scan + pair analysis (IC columns, n_methods_disagree)
+src/pharos/signals/cluster.py     SOC clustering
+src/pharos/signals/timeline.py    emergence timeline + masking + publicity-spike flag
+src/pharos/signals/masking.py     hidden-signal finder, alias groups
+src/pharos/signals/label.py       FDA label check (known vs new)
+src/pharos/ctd/checker.py         CTD matching + scoring + dependency-ordered remediation
+src/pharos/ctd/report.py          Markdown gap report
 src/pharos/ctd/data/ich_m4_ctd.yaml
-src/pharos/cli.py               Typer CLI
-src/mcp_server/server.py        IBM Bob MCP server
-src/app/streamlit_app.py        dashboard
-src/tests/                      pytest
+src/pharos/cli.py                 Typer CLI
+src/mcp_server/server.py          IBM Bob MCP server (9 tools)
+src/app/streamlit_app.py          dashboard
+src/tests/                        pytest — 103 tests, all offline
 ```
